@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+web/.venv/
+
+# ---- Node / frontend build ----
+node_modules/
+web/frontend/dist/
+
+# ---- Live data & backups (kept in OneDrive + on the server, not in source) ----
+filament_data.json
+filament_data.backup.json
+backups/
+web/data/*
+!web/data/.gitkeep
+
+# ---- Secrets (never commit) ----
+**/settings.json
+*.env
+.env
+
+# ---- Build artifacts ----
+*.tar.gz
+
+# ---- OS / editor cruft ----
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

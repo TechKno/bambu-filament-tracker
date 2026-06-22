@@ -1,0 +1,10 @@
+services:
+  filament-tracker:
+    build: .
+    image: filament-tracker
+    container_name: filament-tracker
+    ports:
+      - "8087:8000"        # browse to http://localhost:8087
+    volumes:
+      - ./data:/data       # filament_data.json, settings.json and backups/ live here
+    restart: unless-stopped
