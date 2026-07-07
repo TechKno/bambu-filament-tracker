@@ -2,9 +2,11 @@
 
 A self-hosted web version of the filament tracker: a **React** single-page app
 backed by a **Flask** JSON API, packaged as a single **Docker** container.
-It manages your filament inventory, prints (single/multi-material, with an
-in-progress state), reorder status, usage stats and a run-out forecast — all the
-features of the original CLI, in a browser.
+It manages your filament inventory, logs prints (single/multi-material, with
+completed / failed / in-progress states), tracks **cost per print**, warns you
+before a roll runs dry, handles reordering, and shows usage stats with a run-out
+forecast. Weights are tracked to **0.01 g**. See the top-level
+[README](../README.md) for the full feature list.
 
 ## Quick start (Docker)
 
@@ -16,8 +18,9 @@ docker compose up -d --build
 Then open **http://localhost:8087**.
 
 Your data, settings and rolling backups live in `web/data/` (bind-mounted to
-`/data` in the container). A copy of your existing `filament_data.json` has
-already been placed there, so your spools and print history are ready to go.
+`/data` in the container). On first run the app creates an empty
+`filament_data.json` there; to bring existing data across, drop your
+`filament_data.json` into `web/data/` before starting.
 
 To change the port, edit the `ports:` line in `docker-compose.yml`
 (`"8087:8000"` → `"<your-port>:8000"`).
