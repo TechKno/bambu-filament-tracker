@@ -184,7 +184,7 @@ def add_spool():
     spool = store.add_spool(
         brand=d.get("brand", ""), material=d.get("material", ""),
         color=d.get("color", ""), total_g=total_g, remaining_g=remaining,
-        estimated=(not full), notes=d.get("notes", ""),
+        estimated=(not full), notes=d.get("notes", ""), price=d.get("price", 0),
     )
     return jsonify(spool.to_api()), 201
 
@@ -197,7 +197,7 @@ def patch_spool(spool_id):
     action = d.get("action", "edit")
     if action == "edit":
         s = store.update_spool(spool_id, brand=d.get("brand"), material=d.get("material"),
-                               color=d.get("color"), notes=d.get("notes"))
+                               color=d.get("color"), notes=d.get("notes"), price=d.get("price"))
     elif action == "set_remaining":
         s = store.set_remaining(spool_id, float(d.get("remaining_g", 0)),
                                 bool(d.get("measured", True)))

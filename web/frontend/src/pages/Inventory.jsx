@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api.js'
+import { api, money, CURRENCY } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 function barClass(pct) {
@@ -30,10 +30,13 @@ export default function Inventory({ inv, reload }) {
     try { await fn(); await reload() } catch (e) { setErr(e.message) }
   }
 
+  const totalValue = inv.items.reduce((a, i) => a + (i.value || 0), 0)
+
   return (
     <div>
       <div className="row" style={{ marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Inventory</h2>
+        {totalValue > 0 && <span className="muted">· {money(totalValue)} on hand</span>}
         <span className="spacer" />
         <button className="btn" onClick={() => setFormSpool(null)}>+ Add spool</button>
       </div>
@@ -49,6 +52,7 @@ export default function Inventory({ inv, reload }) {
               <div className="inv-sub">
                 {item.roll_count} roll{item.roll_count === 1 ? '' : 's'}
                 {item.roll_count > 1 && ` · ${item.total_estimated ? '~' : ''}${Math.round(item.total_remaining)} g total`}
+                {item.value > 0 && ` · ${money(item.value)}`}
               </div>
             </div>
             <span className="spacer" />
@@ -64,6 +68,7 @@ export default function Inventory({ inv, reload }) {
                 <div className="roll" key={r.id}>
                   <span className="muted">#{r.id}</span>
                   <span>{r.is_empty ? <span className="muted">empty</span> : `${r.estimated ? '~' : ''}${Math.round(r.remaining_g)} g (${r.percent_left}%)`}</span>
+                  {r.price > 0 && <span className="muted" title="price per full roll">{money(r.price)}/roll</span>}
                   <span className="spacer" />
                   <button className="btn small ghost" onClick={() => setWeighSpool(r)}>Weigh</button>
                   <button className="btn small ghost" onClick={() => act(() => api.patchSpool(r.id, { action: 'refill' }))}>Refill</button>
@@ -94,7 +99,8 @@ function SpoolForm({ spool, onClose, onSaved }) {
   const [opts, setOpts] = useState({ brands: [], materials: [], colors: [] })
   const [f, setF] = useState({
     brand: spool?.brand || '', material: spool?.material || '', color: spool?.color || '',
-    total_g: spool?.total_g || 1000, full: true, remaining_g: '', notes: spool?.notes || '',
+    total_g: spool?.total_g || 1000, full: true, remaining_g: '',
+    price: spool?.price ? String(spool.price) : '', notes: spool?.notes || '',
   })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -106,13 +112,14 @@ function SpoolForm({ spool, onClose, onSaved }) {
     e.preventDefault()
     setBusy(true); setErr('')
     try {
+      const price = Number(f.price || 0)
       if (editing) {
-        await api.patchSpool(spool.id, { action: 'edit', brand: f.brand, material: f.material, color: f.color, notes: f.notes })
+        await api.patchSpool(spool.id, { action: 'edit', brand: f.brand, material: f.material, color: f.color, notes: f.notes, price })
       } else {
         await api.addSpool({
           brand: f.brand, material: f.material, color: f.color,
           total_g: Number(f.total_g), full: f.full,
-          remaining_g: f.full ? Number(f.total_g) : Number(f.remaining_g || 0), notes: f.notes,
+          remaining_g: f.full ? Number(f.total_g) : Number(f.remaining_g || 0), notes: f.notes, price,
         })
       }
       onSaved()
@@ -130,6 +137,9 @@ function SpoolForm({ spool, onClose, onSaved }) {
           <label className="field"><span>Material</span><input list="materials" value={f.material} onChange={set('material')} required /></label>
         </div>
         <label className="field"><span>Colour</span><input list="colors" value={f.color} onChange={set('color')} required /></label>
+        <label className="field"><span>Price for a full roll ({CURRENCY}, optional)</span>
+          <input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} placeholder="e.g. 18.99" />
+          <span className="muted" style={{ fontSize: 12 }}>Used to work out cost per print.</span></label>
         {!editing && (
           <>
             <label className="field"><span>Full filament weight (g)</span>

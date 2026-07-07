@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api.js'
+import { api, money } from '../api.js'
 
 export default function Stats() {
   const [s, setS] = useState(null)
@@ -24,15 +24,38 @@ export default function Stats() {
         </div>
       </div>
 
+      {(s.cost_total > 0 || s.inventory_value > 0) ? (
+        <div className="panel">
+          <h2>Cost</h2>
+          <div className="stat-grid">
+            <Stat big={money(s.cost_total)} lbl="spent on prints" />
+            <Stat big={money(s.cost_failed)} lbl="lost to failed prints" />
+            <Stat big={s.avg_cost_per_print == null ? '—' : money(s.avg_cost_per_print)} lbl="avg / completed print" />
+            <Stat big={money(s.inventory_value)} lbl="filament on hand" />
+          </div>
+        </div>
+      ) : (
+        <div className="panel muted">Add prices to your spools (Inventory → Edit) to see cost per print and total spend.</div>
+      )}
+
       <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
         <div className="panel" style={{ flex: 1, minWidth: 260 }}>
           <h2>Used by material</h2>
           {s.by_material.length === 0 && <p className="muted">No usage yet.</p>}
-          <table><tbody>
+          {s.by_material.length > 0 && (
+          <table>
+            <thead><tr><th>Material</th><th className="num">Used</th><th className="num">Cost</th></tr></thead>
+            <tbody>
             {s.by_material.map((m) => (
-              <tr key={m.material}><td>{m.material}</td><td className="num">{Math.round(m.grams).toLocaleString()} g</td></tr>
+              <tr key={m.material}>
+                <td>{m.material}</td>
+                <td className="num">{Math.round(m.grams).toLocaleString()} g</td>
+                <td className="num">{m.cost > 0 ? money(m.cost) : '—'}</td>
+              </tr>
             ))}
-          </tbody></table>
+            </tbody>
+          </table>
+          )}
         </div>
         <div className="panel" style={{ flex: 1, minWidth: 260 }}>
           <h2>Used by month</h2>

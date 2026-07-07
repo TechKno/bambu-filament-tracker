@@ -1,3 +1,8 @@
+// Currency shown throughout the UI. Change this one line for $, €, etc.
+export const CURRENCY = '£'
+// Format a money value; null/undefined -> em dash (unknown/unpriced).
+export const money = (n) => (n == null ? '—' : `${CURRENCY}${Number(n).toFixed(2)}`)
+
 // Tiny fetch wrapper around the Flask JSON API.
 // Throws { auth: true } on 401 so the app can show the login screen,
 // and Error(message) on other failures so callers can surface it.

@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api.js'
+import { api, money } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 const TAG = { completed: ['ok', 'OK'], failed: ['failed', 'FAILED'], in_progress: ['wip', 'WIP'] }
+
+// '—' when nothing is priced; a trailing '+' when only some materials have a price.
+function costLabel(p) {
+  if (p.cost_status === 'none') return '—'
+  return money(p.cost) + (p.cost_status === 'partial' ? '+' : '')
+}
 
 export default function History({ reload }) {
   const [prints, setPrints] = useState(null)
@@ -27,7 +33,7 @@ export default function History({ reload }) {
       {prints.length === 0 && <p className="muted">No prints logged yet.</p>}
       {prints.length > 0 && (
         <table>
-          <thead><tr><th>#</th><th>Date</th><th>Status</th><th>Name</th><th className="num">Used</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Date</th><th>Status</th><th>Name</th><th className="num">Used</th><th className="num">Cost</th><th></th></tr></thead>
           <tbody>
             {prints.map((p) => {
               const [cls, label] = TAG[p.status] || ['ok', p.status]
@@ -43,6 +49,7 @@ export default function History({ reload }) {
                     </div>
                   </td>
                   <td className="num">{Math.round(p.total_g)}g{p.status === 'in_progress' ? ' planned' : ''}</td>
+                  <td className="num" title={p.cost_status === 'partial' ? 'Partial — some materials have no price' : ''}>{costLabel(p)}</td>
                   <td className="num">
                     <button className="btn ghost small" onClick={() => setEditing(p)}>Edit</button>{' '}
                     <button className="btn danger small" onClick={() => del(p)}>✕</button>

@@ -45,6 +45,7 @@ class Spool:
     remaining_g: float
     estimated: bool = False
     reorder_status: str = ""   # "" | "ordered" | "ignored"
+    price: float = 0.0         # what a full roll costs (0 = unknown)
     notes: str = ""
     added: str = ""
 
@@ -53,6 +54,20 @@ class Spool:
         if self.total_g <= 0:
             return 0.0
         return max(0.0, (self.remaining_g / self.total_g) * 100.0)
+
+    @property
+    def cost_per_g(self) -> float:
+        if self.total_g <= 0 or self.price <= 0:
+            return 0.0
+        return self.price / self.total_g
+
+    @property
+    def remaining_value(self) -> float:
+        return self.remaining_g * self.cost_per_g
+
+    @property
+    def has_price(self) -> bool:
+        return self.price > 0
 
     @property
     def is_empty(self) -> bool:
@@ -68,7 +83,7 @@ class Spool:
 
     # Fields actually written to disk (keeps derived props out of the file).
     PERSIST = ("id", "brand", "material", "color", "total_g", "remaining_g",
-               "estimated", "reorder_status", "notes", "added")
+               "estimated", "reorder_status", "price", "notes", "added")
 
     def to_persist(self) -> dict:
         return {k: getattr(self, k) for k in self.PERSIST}
@@ -80,6 +95,8 @@ class Spool:
             is_empty=self.is_empty,
             is_low=self.is_low,
             label=self.label,
+            cost_per_g=round(self.cost_per_g, 5),
+            remaining_value=round(self.remaining_value, 2),
         )
         return d
 
@@ -237,13 +254,13 @@ class Store:
     # -- spool operations -------------------------------------------------- #
 
     def add_spool(self, brand, material, color, total_g, remaining_g,
-                  estimated=False, notes="") -> Spool:
+                  estimated=False, notes="", price=0.0) -> Spool:
         spool = Spool(
             id=self.next_spool_id, brand=brand.strip(),
             material=material.strip().upper(), color=color.strip(),
             total_g=float(total_g), remaining_g=float(remaining_g),
-            estimated=bool(estimated), notes=notes.strip(),
-            added=datetime.now().strftime("%Y-%m-%d"),
+            estimated=bool(estimated), price=max(0.0, float(price or 0)),
+            notes=notes.strip(), added=datetime.now().strftime("%Y-%m-%d"),
         )
         self.spools.append(spool)
         self.next_spool_id += 1
@@ -255,7 +272,7 @@ class Store:
         return spool
 
     def update_spool(self, spool_id: int, *, brand=None, material=None,
-                     color=None, notes=None) -> Spool:
+                     color=None, notes=None, price=None) -> Spool:
         s = self.require_spool(spool_id)
         if brand is not None:
             s.brand = brand.strip()
@@ -265,6 +282,8 @@ class Store:
             s.color = color.strip()
         if notes is not None:
             s.notes = notes.strip()
+        if price is not None:
+            s.price = max(0.0, float(price or 0))
         self.save()
         return s
 
@@ -426,6 +445,20 @@ def _grouped(store: Store) -> dict:
     return groups
 
 
+def print_cost(store: Store, job: PrintJob) -> tuple:
+    """Cost of a print at current spool prices. Returns (cost, status) where
+    status is 'full' (all materials priced), 'partial' (some), or 'none'."""
+    cost, priced, total = 0.0, 0, 0
+    for u in job.usage:
+        total += 1
+        s = store.get_spool(u.spool_id)
+        if s is not None and s.has_price:
+            cost += u.grams * s.cost_per_g
+            priced += 1
+    status = "full" if (total and priced == total) else ("partial" if priced else "none")
+    return cost, status
+
+
 def inventory_view(store: Store) -> list:
     out = []
     for rolls in _grouped(store).values():
@@ -444,7 +477,7 @@ def inventory_view(store: Store) -> list:
         }
         if not active:
             item.update(current_g=0.0, current_pct=0.0, current_estimated=False,
-                        total_remaining=0.0, state="out")
+                        total_remaining=0.0, value=0.0, state="out")
         else:
             current = min(active, key=lambda r: r.remaining_g)
             total_remaining = sum(r.remaining_g for r in active)
@@ -460,6 +493,7 @@ def inventory_view(store: Store) -> list:
                 current_estimated=current.estimated,
                 total_remaining=round(total_remaining, 1),
                 total_estimated=any(r.estimated for r in active),
+                value=round(sum(r.remaining_value for r in active), 2),
                 state=state,
             )
         out.append(item)
@@ -496,10 +530,12 @@ def _usage_with_labels(store: Store, job: PrintJob) -> list:
     out = []
     for u in job.usage:
         s = store.get_spool(u.spool_id)
+        line_cost = round(u.grams * s.cost_per_g, 2) if (s and s.has_price) else None
         out.append({
             "spool_id": u.spool_id,
             "grams": u.grams,
             "label": s.label if s else f"(deleted spool #{u.spool_id})",
+            "cost": line_cost,
         })
     return out
 
@@ -507,9 +543,11 @@ def _usage_with_labels(store: Store, job: PrintJob) -> list:
 def history_view(store: Store) -> list:
     out = []
     for p in sorted(store.prints, key=lambda p: p.id, reverse=True):
+        cost, cost_status = print_cost(store, p)
         out.append({
             "id": p.id, "name": p.name, "date": p.date, "status": p.status,
             "total_g": round(sum(u.grams for u in p.usage), 1),
+            "cost": round(cost, 2), "cost_status": cost_status,
             "usage": _usage_with_labels(store, p),
         })
     return out
@@ -525,12 +563,19 @@ def stats_view(store: Store) -> dict:
     used_done = sum(u.grams for p in completed for u in p.usage)
     used_fail = sum(u.grams for p in failed for u in p.usage)
 
-    by_mat: dict[str, float] = {}
+    cost_done = sum(print_cost(store, p)[0] for p in completed)
+    cost_fail = sum(print_cost(store, p)[0] for p in failed)
+    inventory_value = sum(s.remaining_value for s in store.spools)
+
+    by_mat: dict[str, dict] = {}
     for p in resolved:
         for u in p.usage:
             s = store.get_spool(u.spool_id)
             mat = s.material if s else "(unknown)"
-            by_mat[mat] = by_mat.get(mat, 0.0) + u.grams
+            e = by_mat.setdefault(mat, {"grams": 0.0, "cost": 0.0})
+            e["grams"] += u.grams
+            if s and s.has_price:
+                e["cost"] += u.grams * s.cost_per_g
 
     by_month: dict[str, float] = {}
     for p in resolved:
@@ -550,10 +595,15 @@ def stats_view(store: Store) -> dict:
         "used_total": round(used_done + used_fail, 1),
         "used_printed": round(used_done, 1),
         "used_failed": round(used_fail, 1),
+        "cost_total": round(cost_done + cost_fail, 2),
+        "cost_printed": round(cost_done, 2),
+        "cost_failed": round(cost_fail, 2),
+        "avg_cost_per_print": round(cost_done / len(completed), 2) if completed else None,
+        "inventory_value": round(inventory_value, 2),
         "tracking_since": min(days).isoformat() if days else None,
         "tracking_days": (today - min(days)).days if days else 0,
-        "by_material": [{"material": m, "grams": round(g, 1)}
-                        for m, g in sorted(by_mat.items(), key=lambda kv: -kv[1])],
+        "by_material": [{"material": m, "grams": round(v["grams"], 1), "cost": round(v["cost"], 2)}
+                        for m, v in sorted(by_mat.items(), key=lambda kv: -kv[1]["grams"])],
         "by_month": [{"month": k, "grams": round(by_month[k], 1)} for k in sorted(by_month)],
         "forecast": forecast_view(store, today),
     }
