@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api.js'
+import { api, grams } from '../api.js'
 
 const SECTIONS = [
   ['needs', 'Reorder needed'],
@@ -37,7 +37,7 @@ export default function Reorder({ reload }) {
             {list.map((t) => (
               <div className="roll" key={t.type_id}>
                 <span>{t.label}</span>
-                <span className="muted">{t.current_pct === 0 ? 'OUT' : `${t.estimated ? '~' : ''}${Math.round(t.current_g)} g (${t.current_pct}%)`}</span>
+                <span className="muted">{t.current_pct === 0 ? 'OUT' : `${t.estimated ? '~' : ''}${grams(t.current_g)} g (${t.current_pct}%)`}</span>
                 <span className="spacer" />
                 {state !== 'ordered' && <button className="btn small ghost" onClick={() => setStatus(t, 'ordered')}>Mark reordered</button>}
                 {state !== 'ignored' && <button className="btn small ghost" onClick={() => setStatus(t, 'ignored')}>Ignore</button>}

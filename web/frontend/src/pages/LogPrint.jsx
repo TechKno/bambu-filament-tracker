@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api } from '../api.js'
+import { api, grams } from '../api.js'
 
 const OUTCOMES = [
   ['completed', 'Completed'],
@@ -71,12 +71,12 @@ export default function LogPrint({ spools, reload, onDone }) {
               <select value={r.spool_id} onChange={(e) => { setRow(i, 'spool_id', e.target.value); setShortfalls(null) }}>
                 <option value="">Choose a spool…</option>
                 {spools.map((s) => (
-                  <option key={s.id} value={s.id}>#{s.id} {s.label} — {Math.round(s.remaining_g)} g left</option>
+                  <option key={s.id} value={s.id}>#{s.id} {s.label} — {grams(s.remaining_g)} g left</option>
                 ))}
               </select>
             </label>
             <label className="field" style={{ margin: 0 }}>
-              <input type="number" min="0" placeholder="grams" value={r.grams}
+              <input type="number" min="0" step="0.01" placeholder="grams" value={r.grams}
                 onChange={(e) => { setRow(i, 'grams', e.target.value); setShortfalls(null) }} />
             </label>
             {rows.length > 1
@@ -103,7 +103,7 @@ export default function LogPrint({ spools, reload, onDone }) {
             <b>Not enough filament to finish on:</b>
             {shortfalls.map((s) => (
               <div className="line" key={s.spool_id}>
-                {s.label}: short by {Math.round(s.short_by)} g
+                {s.label}: short by {grams(s.short_by)} g
                 {s.spares ? ` — you have ${s.spares} spare(s)` : ' — no spares!'}
               </div>
             ))}

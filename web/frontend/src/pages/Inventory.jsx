@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, money, CURRENCY } from '../api.js'
+import { api, money, grams, CURRENCY } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 function barClass(pct) {
@@ -51,7 +51,7 @@ export default function Inventory({ inv, reload }) {
               <div className="inv-title">{item.label}</div>
               <div className="inv-sub">
                 {item.roll_count} roll{item.roll_count === 1 ? '' : 's'}
-                {item.roll_count > 1 && ` · ${item.total_estimated ? '~' : ''}${Math.round(item.total_remaining)} g total`}
+                {item.roll_count > 1 && ` · ${item.total_estimated ? '~' : ''}${grams(item.total_remaining)} g total`}
                 {item.value > 0 && ` · ${money(item.value)}`}
               </div>
             </div>
@@ -59,7 +59,7 @@ export default function Inventory({ inv, reload }) {
             {statePill(item)}
             {item.current_estimated && <span className="pill est" title="estimated weight">~est</span>}
             <div className={barClass(item.current_pct)}><div style={{ width: `${Math.min(100, item.current_pct)}%` }} /></div>
-            <div className="weight">{item.current_estimated ? '~' : ''}{Math.round(item.current_g)} g</div>
+            <div className="weight">{item.current_estimated ? '~' : ''}{grams(item.current_g)} g</div>
           </div>
 
           {open[item.type_id] && (
@@ -67,7 +67,7 @@ export default function Inventory({ inv, reload }) {
               {item.rolls.map((r) => (
                 <div className="roll" key={r.id}>
                   <span className="muted">#{r.id}</span>
-                  <span>{r.is_empty ? <span className="muted">empty</span> : `${r.estimated ? '~' : ''}${Math.round(r.remaining_g)} g (${r.percent_left}%)`}</span>
+                  <span>{r.is_empty ? <span className="muted">empty</span> : `${r.estimated ? '~' : ''}${grams(r.remaining_g)} g (${r.percent_left}%)`}</span>
                   {r.price > 0 && <span className="muted" title="price per full roll">{money(r.price)}/roll</span>}
                   <span className="spacer" />
                   <button className="btn small ghost" onClick={() => setWeighSpool(r)}>Weigh</button>
@@ -143,14 +143,14 @@ function SpoolForm({ spool, onClose, onSaved }) {
         {!editing && (
           <>
             <label className="field"><span>Full filament weight (g)</span>
-              <input type="number" min="1" value={f.total_g} onChange={set('total_g')} required /></label>
+              <input type="number" min="1" step="0.01" value={f.total_g} onChange={set('total_g')} required /></label>
             <label className="checkbox" style={{ marginBottom: 12 }}>
               <input type="checkbox" checked={f.full} onChange={(e) => setF((s) => ({ ...s, full: e.target.checked }))} />
               <span>Brand-new / full roll</span>
             </label>
             {!f.full && (
               <label className="field"><span>Estimated grams remaining now</span>
-                <input type="number" min="0" value={f.remaining_g} onChange={set('remaining_g')} required />
+                <input type="number" min="0" step="0.01" value={f.remaining_g} onChange={set('remaining_g')} required />
                 <span className="muted" style={{ fontSize: 12 }}>Marked as estimated until you weigh it.</span></label>
             )}
           </>
@@ -167,7 +167,7 @@ function SpoolForm({ spool, onClose, onSaved }) {
 }
 
 function WeighModal({ spool, onClose, onSaved }) {
-  const [grams, setGrams] = useState(Math.round(spool.remaining_g))
+  const [remaining, setRemaining] = useState(spool.remaining_g)
   const [measured, setMeasured] = useState(true)
   const [err, setErr] = useState('')
 
@@ -175,7 +175,7 @@ function WeighModal({ spool, onClose, onSaved }) {
     e.preventDefault()
     setErr('')
     try {
-      await api.patchSpool(spool.id, { action: 'set_remaining', remaining_g: Number(grams), measured })
+      await api.patchSpool(spool.id, { action: 'set_remaining', remaining_g: Number(remaining), measured })
       onSaved()
     } catch (e2) { setErr(e2.message) }
   }
@@ -183,8 +183,8 @@ function WeighModal({ spool, onClose, onSaved }) {
   return (
     <Modal title={`Weigh / set remaining — #${spool.id}`} onClose={onClose}>
       <form onSubmit={save}>
-        <label className="field"><span>Filament remaining (g) of {Math.round(spool.total_g)} g</span>
-          <input type="number" min="0" max={spool.total_g} autoFocus value={grams} onChange={(e) => setGrams(e.target.value)} /></label>
+        <label className="field"><span>Filament remaining (g) of {grams(spool.total_g)} g</span>
+          <input type="number" min="0" max={spool.total_g} step="0.01" autoFocus value={remaining} onChange={(e) => setRemaining(e.target.value)} /></label>
         <label className="checkbox" style={{ marginBottom: 12 }}>
           <input type="checkbox" checked={measured} onChange={(e) => setMeasured(e.target.checked)} />
           <span>This is a measured weight (clears the “estimated” flag)</span>

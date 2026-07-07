@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, money } from '../api.js'
+import { api, money, grams } from '../api.js'
 
 export default function Stats() {
   const [s, setS] = useState(null)
@@ -17,8 +17,8 @@ export default function Stats() {
         <div className="stat-grid">
           <Stat big={s.total_prints} lbl="prints logged" />
           <Stat big={s.success_rate == null ? '—' : `${s.success_rate}%`} lbl={`success (${s.completed}/${s.completed + s.failed})`} />
-          <Stat big={`${s.used_total.toLocaleString()} g`} lbl="filament used" />
-          <Stat big={`${s.used_failed.toLocaleString()} g`} lbl="lost to fails" />
+          <Stat big={`${grams(s.used_total)} g`} lbl="filament used" />
+          <Stat big={`${grams(s.used_failed)} g`} lbl="lost to fails" />
           <Stat big={s.in_progress} lbl="in progress" />
           <Stat big={s.tracking_days} lbl={`days tracked${s.tracking_since ? ` (since ${s.tracking_since})` : ''}`} />
         </div>
@@ -49,7 +49,7 @@ export default function Stats() {
             {s.by_material.map((m) => (
               <tr key={m.material}>
                 <td>{m.material}</td>
-                <td className="num">{Math.round(m.grams).toLocaleString()} g</td>
+                <td className="num">{grams(m.grams)} g</td>
                 <td className="num">{m.cost > 0 ? money(m.cost) : '—'}</td>
               </tr>
             ))}
@@ -62,7 +62,7 @@ export default function Stats() {
           {s.by_month.length === 0 && <p className="muted">No usage yet.</p>}
           <table><tbody>
             {s.by_month.map((m) => (
-              <tr key={m.month}><td>{m.month}</td><td className="num">{Math.round(m.grams).toLocaleString()} g</td></tr>
+              <tr key={m.month}><td>{m.month}</td><td className="num">{grams(m.grams)} g</td></tr>
             ))}
           </tbody></table>
         </div>
@@ -79,7 +79,7 @@ export default function Stats() {
                 <tr key={f.label}>
                   <td>{f.label}</td>
                   <td className="num">{f.rate_g_per_week.toLocaleString()} g/wk</td>
-                  <td className="num">{f.estimated ? '~' : ''}{Math.round(f.remaining_g).toLocaleString()} g</td>
+                  <td className="num">{f.estimated ? '~' : ''}{grams(f.remaining_g)} g</td>
                   <td className="num">{f.days_left < 14 ? `~${f.days_left} days` : `~${Math.round(f.days_left / 7)} wk`}<div className="muted" style={{ fontSize: 12 }}>{f.runout_date}</div></td>
                 </tr>
               ))}

@@ -91,6 +91,8 @@ class Spool:
     def to_api(self) -> dict:
         d = self.to_persist()
         d.update(
+            total_g=round(self.total_g, 2),
+            remaining_g=round(self.remaining_g, 2),
             percent_left=round(self.percent_left, 1),
             is_empty=self.is_empty,
             is_low=self.is_low,
@@ -149,6 +151,11 @@ def _suppression(rolls: list) -> str:
 
 def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def g2(x) -> float:
+    """Round a gram value to 0.01 g (keeps stored/returned weights clean)."""
+    return round(float(x), 2)
 
 
 def _print_day(p: PrintJob) -> Optional[date]:
@@ -258,7 +265,7 @@ class Store:
         spool = Spool(
             id=self.next_spool_id, brand=brand.strip(),
             material=material.strip().upper(), color=color.strip(),
-            total_g=float(total_g), remaining_g=float(remaining_g),
+            total_g=g2(total_g), remaining_g=g2(remaining_g),
             estimated=bool(estimated), price=max(0.0, float(price or 0)),
             notes=notes.strip(), added=datetime.now().strftime("%Y-%m-%d"),
         )
@@ -289,7 +296,7 @@ class Store:
 
     def set_remaining(self, spool_id: int, grams: float, measured: bool) -> Spool:
         s = self.require_spool(spool_id)
-        s.remaining_g = max(0.0, min(s.total_g, float(grams)))
+        s.remaining_g = g2(max(0.0, min(s.total_g, float(grams))))
         s.estimated = not measured
         if not s.is_low:
             s.reorder_status = ""
@@ -353,13 +360,13 @@ class Store:
         for u in usage:
             s = self.get_spool(u.spool_id)
             if s is not None:
-                s.remaining_g = max(0.0, s.remaining_g - u.grams)
+                s.remaining_g = g2(max(0.0, s.remaining_g - u.grams))
 
     def _restore(self, usage: list) -> None:
         for u in usage:
             s = self.get_spool(u.spool_id)
             if s is not None:
-                s.remaining_g = min(s.total_g, s.remaining_g + u.grams)
+                s.remaining_g = g2(min(s.total_g, s.remaining_g + u.grams))
 
     def _make_usage(self, usage: list) -> list:
         lines, agg = [], {}
@@ -367,7 +374,7 @@ class Store:
             sid = int(u["spool_id"])
             self.require_spool(sid)
             agg[sid] = agg.get(sid, 0.0) + float(u["grams"])
-        return [UsageLine(spool_id=sid, grams=g) for sid, g in agg.items()]
+        return [UsageLine(spool_id=sid, grams=g2(g)) for sid, g in agg.items()]
 
     def log_print(self, name: str, usage: list, status: str) -> PrintJob:
         if status not in ("completed", "failed", "in_progress"):
@@ -414,13 +421,13 @@ class Store:
                     delta = line.grams - old.get(line.spool_id, 0.0)
                     s = self.get_spool(line.spool_id)
                     if s is not None:
-                        s.remaining_g = max(0.0, min(s.total_g, s.remaining_g - delta))
+                        s.remaining_g = g2(max(0.0, min(s.total_g, s.remaining_g - delta)))
                 # Any spool dropped from the print gets its filament back.
                 for sid, g in old.items():
                     if sid not in {l.spool_id for l in new_lines}:
                         s = self.get_spool(sid)
                         if s is not None:
-                            s.remaining_g = min(s.total_g, s.remaining_g + g)
+                            s.remaining_g = g2(min(s.total_g, s.remaining_g + g))
             job.usage = new_lines
         self.save()
         return job
@@ -488,10 +495,10 @@ def inventory_view(store: Store) -> list:
             else:
                 state = "ok"
             item.update(
-                current_g=round(current.remaining_g, 1),
+                current_g=round(current.remaining_g, 2),
                 current_pct=round(current.percent_left, 1),
                 current_estimated=current.estimated,
-                total_remaining=round(total_remaining, 1),
+                total_remaining=round(total_remaining, 2),
                 total_estimated=any(r.estimated for r in active),
                 value=round(sum(r.remaining_value for r in active), 2),
                 state=state,
@@ -511,7 +518,7 @@ def reorder_overview(store: Store) -> list:
             "type_id": type_id(rolls[0]),
             "label": rolls[0].label,
             "state": state,
-            "current_g": round(current.remaining_g, 1) if current else 0.0,
+            "current_g": round(current.remaining_g, 2) if current else 0.0,
             "current_pct": round(current.percent_left, 1) if current else 0.0,
             "estimated": bool(current and current.estimated),
             "spares": len([r for r in active]),
@@ -546,7 +553,7 @@ def history_view(store: Store) -> list:
         cost, cost_status = print_cost(store, p)
         out.append({
             "id": p.id, "name": p.name, "date": p.date, "status": p.status,
-            "total_g": round(sum(u.grams for u in p.usage), 1),
+            "total_g": round(sum(u.grams for u in p.usage), 2),
             "cost": round(cost, 2), "cost_status": cost_status,
             "usage": _usage_with_labels(store, p),
         })
@@ -592,9 +599,9 @@ def stats_view(store: Store) -> dict:
         "failed": len(failed),
         "in_progress": len(wip),
         "success_rate": round(len(completed) / len(resolved) * 100) if resolved else None,
-        "used_total": round(used_done + used_fail, 1),
-        "used_printed": round(used_done, 1),
-        "used_failed": round(used_fail, 1),
+        "used_total": round(used_done + used_fail, 2),
+        "used_printed": round(used_done, 2),
+        "used_failed": round(used_fail, 2),
         "cost_total": round(cost_done + cost_fail, 2),
         "cost_printed": round(cost_done, 2),
         "cost_failed": round(cost_fail, 2),
@@ -602,9 +609,9 @@ def stats_view(store: Store) -> dict:
         "inventory_value": round(inventory_value, 2),
         "tracking_since": min(days).isoformat() if days else None,
         "tracking_days": (today - min(days)).days if days else 0,
-        "by_material": [{"material": m, "grams": round(v["grams"], 1), "cost": round(v["cost"], 2)}
+        "by_material": [{"material": m, "grams": round(v["grams"], 2), "cost": round(v["cost"], 2)}
                         for m, v in sorted(by_mat.items(), key=lambda kv: -kv[1]["grams"])],
-        "by_month": [{"month": k, "grams": round(by_month[k], 1)} for k in sorted(by_month)],
+        "by_month": [{"month": k, "grams": round(by_month[k], 2)} for k in sorted(by_month)],
         "forecast": forecast_view(store, today),
     }
 
@@ -650,7 +657,7 @@ def forecast_view(store: Store, today: Optional[date] = None) -> dict:
                 forecasts.append({
                     "label": e["label"],
                     "rate_g_per_week": round(rate_day * 7),
-                    "remaining_g": round(left, 1),
+                    "remaining_g": round(left, 2),
                     "estimated": estimated.get(k, False),
                     "days_left": round(days_left),
                     "runout_date": (today + timedelta(days=days_left)).isoformat(),

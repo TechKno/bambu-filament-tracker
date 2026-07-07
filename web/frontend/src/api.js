@@ -2,6 +2,8 @@
 export const CURRENCY = '£'
 // Format a money value; null/undefined -> em dash (unknown/unpriced).
 export const money = (n) => (n == null ? '—' : `${CURRENCY}${Number(n).toFixed(2)}`)
+// Format a gram value to 0.01 g, trimming trailing zeros (700, 12.5, 12.34).
+export const grams = (g) => (g == null ? '' : Number(g).toLocaleString(undefined, { maximumFractionDigits: 2 }))
 
 // Tiny fetch wrapper around the Flask JSON API.
 // Throws { auth: true } on 401 so the app can show the login screen,

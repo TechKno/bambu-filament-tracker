@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, money } from '../api.js'
+import { api, money, grams } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 const TAG = { completed: ['ok', 'OK'], failed: ['failed', 'FAILED'], in_progress: ['wip', 'WIP'] }
@@ -45,10 +45,10 @@ export default function History({ reload }) {
                   <td>
                     {p.name}
                     <div className="muted" style={{ fontSize: 12 }}>
-                      {p.usage.map((u) => `${u.label}: ${Math.round(u.grams)}g`).join(' · ')}
+                      {p.usage.map((u) => `${u.label}: ${grams(u.grams)}g`).join(' · ')}
                     </div>
                   </td>
-                  <td className="num">{Math.round(p.total_g)}g{p.status === 'in_progress' ? ' planned' : ''}</td>
+                  <td className="num">{grams(p.total_g)}g{p.status === 'in_progress' ? ' planned' : ''}</td>
                   <td className="num" title={p.cost_status === 'partial' ? 'Partial — some materials have no price' : ''}>{costLabel(p)}</td>
                   <td className="num">
                     <button className="btn ghost small" onClick={() => setEditing(p)}>Edit</button>{' '}
@@ -94,7 +94,7 @@ function EditModal({ print, onClose, onSaved }) {
       {rows.map((r, i) => (
         <label className="field" key={r.spool_id}>
           <span>{r.label}</span>
-          <input type="number" min="0" value={r.grams} onChange={(e) => setGrams(i, e.target.value)} />
+          <input type="number" min="0" step="0.01" value={r.grams} onChange={(e) => setGrams(i, e.target.value)} />
         </label>
       ))}
       {err && <div className="error">{err}</div>}

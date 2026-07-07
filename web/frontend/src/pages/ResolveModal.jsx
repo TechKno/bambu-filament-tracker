@@ -36,7 +36,7 @@ export default function ResolveModal({ print, onClose, onDone }) {
       {rows.map((r, i) => (
         <label className="field" key={r.spool_id}>
           <span>{r.label} — grams used</span>
-          <input type="number" min="0" value={r.grams} onChange={(e) => setGrams(i, e.target.value)} />
+          <input type="number" min="0" step="0.01" value={r.grams} onChange={(e) => setGrams(i, e.target.value)} />
         </label>
       ))}
       {err && <div className="error">{err}</div>}
