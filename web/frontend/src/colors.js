@@ -45,6 +45,12 @@ function cssSupports(value) {
   }
 }
 
+/** True for see-through filaments, so the icon can be rendered semi-transparent
+ *  (otherwise "Translucent Blue" would look identical to a solid "Blue"). */
+export function isTranslucent(name) {
+  return /\b(translucent|transparent|clear)\b/i.test(String(name || ''))
+}
+
 /** Return a CSS colour for a filament colour name, or null if unresolvable. */
 export function resolveColor(name) {
   const n = String(name || '').trim().toLowerCase()

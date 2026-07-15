@@ -1,11 +1,13 @@
-import { resolveColor } from '../colors.js'
+import { resolveColor, isTranslucent } from '../colors.js'
 
 // A reel seen face-on: the outer ring is the filament colour, the middle is the
 // spool core. The grey outline keeps both black and white filament visible
-// against the dark background.
+// against the dark background. Translucent filaments are drawn semi-transparent
+// so they read differently from the solid version of the same colour.
 export default function SpoolIcon({ color, size = 24 }) {
   const fill = resolveColor(color)
   const known = fill !== null
+  const seeThrough = isTranslucent(color)
   const edge = 'rgba(154,163,178,.75)'
 
   return (
@@ -13,7 +15,9 @@ export default function SpoolIcon({ color, size = 24 }) {
          role="img" aria-label={color ? `${color} filament` : 'filament'}>
       <title>{color || 'Unknown colour'}</title>
       <circle cx="12" cy="12" r="10.5" fill={known ? fill : 'var(--panel-2)'}
-              stroke={edge} strokeWidth="1" />
+              fillOpacity={seeThrough ? 0.45 : 1}
+              stroke={edge} strokeWidth="1"
+              strokeDasharray={seeThrough ? '2.5 1.5' : undefined} />
       {!known && (
         <text x="12" y="9.5" textAnchor="middle" fontSize="7" fill="var(--muted)">?</text>
       )}
