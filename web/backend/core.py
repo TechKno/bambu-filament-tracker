@@ -517,6 +517,7 @@ def reorder_overview(store: Store) -> list:
         out.append({
             "type_id": type_id(rolls[0]),
             "label": rolls[0].label,
+            "color": rolls[0].color,
             "state": state,
             "current_g": round(current.remaining_g, 2) if current else 0.0,
             "current_pct": round(current.percent_left, 1) if current else 0.0,

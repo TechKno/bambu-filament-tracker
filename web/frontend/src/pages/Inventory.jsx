@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, money, grams, CURRENCY } from '../api.js'
 import Modal from '../components/Modal.jsx'
+import SpoolIcon from '../components/SpoolIcon.jsx'
 
 function barClass(pct) {
   if (pct < 10) return 'bar low'
@@ -47,6 +48,7 @@ export default function Inventory({ inv, reload }) {
       {inv.items.map((item) => (
         <div className="inv-item" key={item.type_id}>
           <div className="inv-head" onClick={() => setOpen((o) => ({ ...o, [item.type_id]: !o[item.type_id] }))}>
+            <SpoolIcon color={item.color} />
             <div style={{ minWidth: 0 }}>
               <div className="inv-title">{item.label}</div>
               <div className="inv-sub">

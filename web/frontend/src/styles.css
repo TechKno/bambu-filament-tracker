@@ -123,6 +123,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* material rows in print form */
 .mat-row { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: end; margin-bottom: 8px; }
 
+/* spool colour icon */
+.spool-icon { flex: 0 0 auto; display: block; }
+
 /* misc */
 .error { color: #ff9a92; font-size: 14px; margin: 8px 0; }
 .success { color: #79d98c; font-size: 14px; margin: 8px 0; }

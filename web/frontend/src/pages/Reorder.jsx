@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, grams } from '../api.js'
+import SpoolIcon from '../components/SpoolIcon.jsx'
 
 const SECTIONS = [
   ['needs', 'Reorder needed'],
@@ -36,6 +37,7 @@ export default function Reorder({ reload }) {
             <h3 style={{ margin: '8px 0', fontSize: 14 }} className="muted">{heading}</h3>
             {list.map((t) => (
               <div className="roll" key={t.type_id}>
+                <SpoolIcon color={t.color} size={20} />
                 <span>{t.label}</span>
                 <span className="muted">{t.current_pct === 0 ? 'OUT' : `${t.estimated ? '~' : ''}${grams(t.current_g)} g (${t.current_pct}%)`}</span>
                 <span className="spacer" />
