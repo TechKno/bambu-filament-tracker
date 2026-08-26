@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from './api.js'
 import Login from './components/Login.jsx'
 import Inventory from './pages/Inventory.jsx'
+import Pending from './pages/Pending.jsx'
 import LogPrint from './pages/LogPrint.jsx'
 import History from './pages/History.jsx'
 import Stats from './pages/Stats.jsx'
@@ -11,6 +12,7 @@ import ResolveModal from './pages/ResolveModal.jsx'
 
 const TABS = [
   ['inventory', 'Inventory'],
+  ['pending', 'Pending'],
   ['log', 'Log print'],
   ['history', 'History'],
   ['stats', 'Stats'],
@@ -22,14 +24,17 @@ export default function App() {
   const [auth, setAuth] = useState({ loading: true, enabled: false, authed: false })
   const [view, setView] = useState('inventory')
   const [inv, setInv] = useState(null)
+  const [pend, setPend] = useState({ pending: [], status: {} })
   const [resolveTarget, setResolveTarget] = useState(null)
 
   const loadInv = useCallback(async () => {
-    try {
-      setInv(await api.inventory())
-    } catch (err) {
-      if (err.auth) setAuth((a) => ({ ...a, authed: false }))
-    }
+    try { setInv(await api.inventory()) }
+    catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
+  }, [])
+
+  const loadPending = useCallback(async () => {
+    try { setPend(await api.pending()) }
+    catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
   }, [])
 
   const checkAuth = useCallback(async () => {
@@ -38,7 +43,14 @@ export default function App() {
   }, [])
 
   useEffect(() => { checkAuth() }, [checkAuth])
-  useEffect(() => { if (auth.authed) loadInv() }, [auth.authed, loadInv])
+  useEffect(() => { if (auth.authed) { loadInv(); loadPending() } }, [auth.authed, loadInv, loadPending])
+
+  // Poll for new printer captures / live status while signed in.
+  useEffect(() => {
+    if (!auth.authed) return
+    const t = setInterval(loadPending, 15000)
+    return () => clearInterval(t)
+  }, [auth.authed, loadPending])
 
   if (auth.loading) return <div className="app"><p className="muted" style={{ marginTop: 40 }}>Loading…</p></div>
   if (auth.enabled && !auth.authed) {
@@ -46,6 +58,8 @@ export default function App() {
   }
 
   const spools = inv ? inv.items.flatMap((it) => it.rolls).filter((r) => !r.is_empty) : []
+  const pendCount = pend.pending?.length || 0
+  const reloadAll = () => { loadInv(); loadPending() }
 
   async function logout() {
     await api.logout()
@@ -60,17 +74,27 @@ export default function App() {
           {TABS.map(([id, label]) => (
             <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>
               {label}
+              {id === 'pending' && pendCount > 0 && <span className="badge">{pendCount}</span>}
             </button>
           ))}
-          {auth.enabled && auth.authed && (
-            <button onClick={logout} title="Log out">Log out</button>
-          )}
+          {auth.enabled && auth.authed && <button onClick={logout} title="Log out">Log out</button>}
         </nav>
       </header>
 
+      <PrinterStatus status={pend.status} />
+      {pendCount > 0 && (
+        <div className="banner" style={{ background: 'var(--panel-2)', border: '1px solid var(--border)' }}>
+          <div className="line">
+            <b>{pendCount} print{pendCount > 1 ? 's' : ''} from the printer awaiting confirmation</b>
+            <span className="spacer" />
+            <button className="btn small" onClick={() => setView('pending')}>Review</button>
+          </div>
+        </div>
+      )}
       {inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
 
       {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
+      {view === 'pending' && <Pending pending={pend.pending} spools={spools} reload={reloadAll} />}
       {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}
       {view === 'history' && <History reload={loadInv} />}
       {view === 'stats' && <Stats />}
@@ -78,12 +102,27 @@ export default function App() {
       {view === 'settings' && <Settings auth={auth} refreshAuth={checkAuth} />}
 
       {resolveTarget && (
-        <ResolveModal
-          print={resolveTarget}
-          onClose={() => setResolveTarget(null)}
-          onDone={() => { setResolveTarget(null); loadInv() }}
-        />
+        <ResolveModal print={resolveTarget} onClose={() => setResolveTarget(null)}
+          onDone={() => { setResolveTarget(null); loadInv() }} />
       )}
+    </div>
+  )
+}
+
+function PrinterStatus({ status }) {
+  const printers = Object.values(status || {})
+  if (!printers.length) return null
+  return (
+    <div className="banner" style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}>
+      {printers.map((p) => (
+        <div className="status-line" key={p.serial}>
+          <span className="dot" style={{ background: p.printing ? 'var(--green)' : 'var(--muted)' }} />
+          <b>{p.name}</b>
+          {p.printing
+            ? <span className="muted">printing {p.model || ''} — {p.percent ?? 0}%{p.remaining_min != null ? ` · ${p.remaining_min} min left` : ''}{p.layer != null && p.total_layers != null ? ` · layer ${p.layer}/${p.total_layers}` : ''}</span>
+            : <span className="muted">idle{p.gcode_state ? ` (${p.gcode_state.toLowerCase()})` : ''}</span>}
+        </div>
+      ))}
     </div>
   )
 }

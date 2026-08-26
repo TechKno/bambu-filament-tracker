@@ -23,6 +23,7 @@ from flask import Flask, jsonify, request, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import core
+import pending
 
 # --------------------------------------------------------------------------- #
 # Paths / config
@@ -288,6 +289,69 @@ def set_reorder():
 def stats():
     store = get_store()
     return jsonify(core.stats_view(store))
+
+
+# --------------------------------------------------------------------------- #
+# Pending captures from the MQTT listener (confirm-first auto-logging)
+# --------------------------------------------------------------------------- #
+
+
+def _suggest_grams(store, material, spool_id):
+    """Estimate grams from AMS remaining-% delta x the chosen spool's full weight
+    (only works for Bambu RFID spools that report a real 'remain'; else None)."""
+    rs, re_ = material.get("remain_start"), material.get("remain_end")
+    if not (spool_id and isinstance(rs, (int, float)) and isinstance(re_, (int, float))):
+        return None
+    if rs < 0 or re_ < 0 or rs < re_:
+        return None
+    sp = store.get_spool(spool_id)
+    if not sp or not sp.total_g:
+        return None
+    return round((rs - re_) / 100.0 * sp.total_g, 2)
+
+
+@app.get("/api/pending")
+@require_auth
+def get_pending():
+    store = get_store()
+    slot_map = pending.load_slot_map(DATA_DIR)
+    items = pending.list_pending(DATA_DIR)
+    for cap in items:
+        for m in cap.get("materials", []):
+            sid = slot_map.get(m.get("slot_key"))
+            m["suggested_spool_id"] = sid
+            m["suggested_grams"] = _suggest_grams(store, m, sid)
+    return jsonify(pending=items, status=pending.read_status(DATA_DIR))
+
+
+@app.post("/api/pending/<pid>/confirm")
+@require_auth
+def confirm_pending(pid):
+    d = body()
+    store = get_store()
+    cap = pending.read_pending(DATA_DIR, pid)
+    if cap is None:
+        return jsonify(error="Pending capture not found."), 404
+    lines = d.get("usage", [])
+    usage = [{"spool_id": int(u["spool_id"]), "grams": float(u["grams"])}
+             for u in lines if u.get("spool_id") not in (None, "", "skip")]
+    if not usage:
+        return jsonify(error="Assign at least one material to a spool."), 400
+    name = (d.get("name") or cap.get("model") or "Print").strip()
+    status = d.get("status") or cap.get("status") or "completed"
+    job = store.log_print(name, usage, status)
+    for u in lines:                       # remember slot -> spool for next time
+        if u.get("slot_key") and u.get("spool_id") not in (None, "", "skip"):
+            pending.set_slot(DATA_DIR, u["slot_key"], int(u["spool_id"]))
+    pending.delete_pending(DATA_DIR, pid)
+    return jsonify(id=job.id)
+
+
+@app.post("/api/pending/<pid>/dismiss")
+@require_auth
+def dismiss_pending(pid):
+    pending.delete_pending(DATA_DIR, pid)
+    return jsonify(ok=True)
 
 
 # --------------------------------------------------------------------------- #

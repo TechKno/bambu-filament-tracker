@@ -6,5 +6,18 @@ services:
     ports:
       - "8087:8000"        # browse to http://localhost:8087
     volumes:
-      - ./data:/data       # filament_data.json, settings.json and backups/ live here
+      - ./data:/data       # filament_data.json, settings.json, backups/, pending/ live here
+    restart: unless-stopped
+
+  mqtt-listener:
+    build: ./listener
+    image: filament-mqtt-listener
+    container_name: filament-mqtt
+    depends_on:
+      - filament-tracker
+    environment:
+      - FILAMENT_DATA_DIR=/data
+    volumes:
+      - ./data:/data           # shares pending/ and printer_status.json with the app
+      - ./secrets:/secrets:ro  # printer_codes.env (SERIAL=ACCESSCODE per line)
     restart: unless-stopped

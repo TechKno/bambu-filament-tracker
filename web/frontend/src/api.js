@@ -49,4 +49,8 @@ export const api = {
   reorder: () => req('GET', '/reorder'),
   setReorder: (type_id, status) => req('POST', '/reorder', { type_id, status }),
   stats: () => req('GET', '/stats'),
+
+  pending: () => req('GET', '/pending'),
+  confirmPending: (id, d) => req('POST', `/pending/${id}/confirm`, d),
+  dismissPending: (id) => req('POST', `/pending/${id}/dismiss`),
 }

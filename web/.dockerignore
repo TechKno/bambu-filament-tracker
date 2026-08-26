@@ -4,4 +4,7 @@
 **/__pycache__
 **/*.pyc
 backend/_smoketest.py
+backend/_*test*.py
 data
+secrets
+listener

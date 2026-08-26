@@ -19,6 +19,8 @@ web/data/*
 **/settings.json
 *.env
 .env
+web/secrets/
+printers.json
 
 # ---- Build artifacts ----
 *.tar.gz
