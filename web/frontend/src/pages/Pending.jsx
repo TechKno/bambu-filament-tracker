@@ -72,7 +72,7 @@ function LoadCard({ load, spools, reload }) {
     <div className="panel" style={{ padding: 14 }}>
       <div className="row" style={{ marginBottom: 8 }}>
         {bambuSwatch(load.color)}
-        <b>{load.external ? 'External spool' : `AMS ${load.ams} · tray ${load.tray}`}</b>
+        <b>{load.external ? 'External spool' : `AMS ${(load.ams ?? 0) + 1} · slot ${(load.tray ?? 0) + 1}`}</b>
         <span className="muted">{load.type} loaded · {load.ts}</span>
       </div>
       <div className="row">
@@ -144,7 +144,7 @@ function PendingCard({ cap, spools, reload }) {
         <div className="pending-mat" key={r.slot_key + i}>
           <div className="pending-mat-info">
             {bambuSwatch(r.meta.color)}
-            <span>{r.meta.external ? 'External spool' : `AMS ${r.meta.ams ?? '?'} · tray ${r.meta.tray ?? '?'}`}</span>
+            <span>{r.meta.external ? 'External spool' : `AMS ${(r.meta.ams ?? 0) + 1} · slot ${(r.meta.tray ?? 0) + 1}`}</span>
             {r.meta.type && <span className="muted">{r.meta.type}</span>}
             {r.meta.grams_source === 'gcode' && <span className="pill ordered" title="grams from the sliced file">auto</span>}
             {r.meta.grams_source === 'gcode-partial' && <span className="pill switch" title="estimated from % printed">est</span>}
