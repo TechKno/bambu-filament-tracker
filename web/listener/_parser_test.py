@@ -74,13 +74,18 @@ _, caps = run([
 ])
 check("failed: status failed", caps and caps[0]["status"] == "failed", caps)
 
-# --- external spool (tray_now 255/254) -------------------------------------- #
+# --- external spool (tray_now 254) reads vt_tray + carries gcode_file -------- #
 _, caps = run([
-    {"print": {"gcode_state": "RUNNING", "subtask_name": "Ext", "ams": {"tray_now": "254"}}},
+    {"print": {"gcode_state": "RUNNING", "subtask_name": "Ext", "gcode_file": "Ext.3mf",
+               "vt_tray": {"tray_type": "PETG", "tray_color": "61B0FF80", "remain": 0},
+               "ams": {"tray_now": "254"}}},
     {"print": {"gcode_state": "FINISH", "ams": {"tray_now": "254"}}},
 ])
-check("external: material flagged external", caps and caps[0]["materials"][0]["external"] is True, caps)
-check("external: slot_key ext", caps and caps[0]["materials"][0]["slot_key"] == "01P00A000000000:ext", caps)
+mat = caps[0]["materials"][0]
+check("external: flagged external", mat["external"] is True, mat)
+check("external: slot_key ext", mat["slot_key"] == "01P00A000000000:ext", mat)
+check("external: type/color from vt_tray", mat["type"] == "PETG" and mat["color"] == "61B0FF80", mat)
+check("external: gcode_file in capture", caps[0]["gcode_file"] == "Ext.3mf", caps[0].get("gcode_file"))
 
 # --- connect mid-pause, resume, then finish --------------------------------- #
 _, caps = run([

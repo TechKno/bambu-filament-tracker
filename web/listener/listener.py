@@ -24,6 +24,7 @@ from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
+import bambu_ftp
 from parser import PrinterMonitor
 
 DATA_DIR = Path(os.environ.get("FILAMENT_DATA_DIR", "/data"))
@@ -133,7 +134,36 @@ class PrinterClient:
             write_status(self.serial, status)
             self._maybe_record(status)
         if capture:
+            self._enrich_weights(capture)
             write_capture(capture)
+
+    def _enrich_weights(self, cap):
+        """Pull the sliced 3MF and fill each material's grams from used_g."""
+        info = bambu_ftp.fetch_weights(self.ip, self.code, cap.get("gcode_file"))
+        if not info:
+            log(f"{self.name}: no sliced-file weight for '{cap.get('gcode_file')}' "
+                f"(FTP miss) — grams left for manual entry")
+            return
+        cap["weight_g"] = info.get("weight_g")
+        cap["print_time_s"] = info.get("time_s")
+        fils = list(info.get("filaments") or [])
+        mats = cap.get("materials", [])
+
+        def norm(c):
+            return (c or "").lstrip("#").upper()[:6]
+
+        for m in mats:
+            match = next((f for f in fils if f.get("color") and norm(f["color"]) == norm(m.get("color"))
+                          and (not f.get("type") or not m.get("type") or f["type"] == m.get("type"))), None)
+            if match is None and len(fils) == 1 and len(mats) == 1:
+                match = fils[0]
+            if match and match.get("used_g") is not None:
+                m["grams"] = round(match["used_g"], 2)
+                m["grams_source"] = "gcode"
+                fils.remove(match)
+        matched = sum(1 for m in mats if m.get("grams") is not None)
+        log(f"{self.name}: sliced weight {info.get('weight_g')}g total, "
+            f"{matched}/{len(mats)} material(s) auto-filled from used_g")
 
     def _maybe_record(self, status):
         if RECORD_SECONDS <= 0:

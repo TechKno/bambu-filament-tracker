@@ -320,7 +320,9 @@ def get_pending():
         for m in cap.get("materials", []):
             sid = slot_map.get(m.get("slot_key"))
             m["suggested_spool_id"] = sid
-            m["suggested_grams"] = _suggest_grams(store, m, sid)
+            # Prefer the exact grams the listener read from the sliced 3MF;
+            # fall back to the AMS remaining-% delta (Bambu RFID spools only).
+            m["suggested_grams"] = m["grams"] if m.get("grams") is not None else _suggest_grams(store, m, sid)
     return jsonify(pending=items, status=pending.read_status(DATA_DIR))
 
 

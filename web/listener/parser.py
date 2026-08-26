@@ -99,8 +99,11 @@ class PrinterMonitor:
 
     def _tray_info(self, key: str) -> dict:
         if key in EXTERNAL_TRAYS:
+            vt = self.state["print"].get("vt_tray", {})
             return {"external": True, "ams": None, "tray": None,
-                    "type": None, "color": None, "remain": None}
+                    "type": vt.get("tray_type") or None,
+                    "color": vt.get("tray_color") or None,
+                    "remain": _int(vt.get("remain"))}
         idx = _int(key)
         ams_id, tray_id = (idx // 4, idx % 4) if idx is not None else (None, None)
         for unit in self.state["print"].get("ams", {}).get("ams", []):
@@ -144,6 +147,7 @@ class PrinterMonitor:
             "captured_at": self._now().strftime("%Y-%m-%d %H:%M"),
             "status": status,
             "model": self.model or st.get("subtask_name") or "Print",
+            "gcode_file": st.get("gcode_file") or "",   # used to fetch the sliced 3MF
             "duration_min": int((self._now() - self.start_time).total_seconds() // 60)
                             if self.start_time else None,
             "materials": materials,

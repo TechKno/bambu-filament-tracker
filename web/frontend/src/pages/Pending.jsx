@@ -71,7 +71,8 @@ function PendingCard({ cap, spools, reload }) {
         <span className={`tag ${cls}`}>{label}</span>
         <b>{cap.model}</b>
         <span className="muted">
-          {cap.printer_name}{cap.duration_min != null ? ` · ${cap.duration_min} min` : ''} · {cap.captured_at}
+          {cap.printer_name}{cap.weight_g != null ? ` · ${cap.weight_g} g sliced` : ''}
+          {cap.duration_min != null ? ` · ${cap.duration_min} min` : ''} · {cap.captured_at}
         </span>
       </div>
 
@@ -90,6 +91,7 @@ function PendingCard({ cap, spools, reload }) {
             {bambuSwatch(r.meta.color)}
             <span>{r.meta.external ? 'External spool' : `AMS ${r.meta.ams ?? '?'} · tray ${r.meta.tray ?? '?'}`}</span>
             {r.meta.type && <span className="muted">{r.meta.type}</span>}
+            {r.meta.grams_source === 'gcode' && <span className="pill ordered" title="grams read from the sliced file">auto</span>}
           </div>
           <select value={r.spool_id} onChange={(e) => setRow(i, 'spool_id', e.target.value)}>
             <option value="">Choose a spool…</option>
