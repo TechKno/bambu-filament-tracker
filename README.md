@@ -12,18 +12,8 @@ LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see [Printer support](#print
 > Single-user, self-hosted, LAN-only by design. No accounts, no telemetry, nothing
 > leaves your network.
 
-![Dashboard](docs/screenshots/dashboard.png)
-
-<p align="center">
-  <img src="docs/screenshots/pending.png" alt="Confirming a finished print" width="49%">
-  <img src="docs/screenshots/inventory.png" alt="Inventory" width="49%">
-</p>
-<p align="center">
-  <img src="docs/screenshots/history.png" alt="Print history" width="49%">
-  <img src="docs/screenshots/mobile.png" alt="Mobile dashboard" width="22%">
-</p>
-
-<sub>Screenshots use demo data — names, filaments and model previews are fabricated.</sub>
+<sub>All screenshots below use demo data — the filaments, print names and model
+previews are fabricated.</sub>
 
 ---
 
@@ -34,43 +24,88 @@ printer is the source of truth for what was printed, and the slicer is the sourc
 truth for how much it used. The only thing left for a human is confirming which
 physical spool was loaded — and after the first time, it remembers that too.
 
-## Features
+---
 
-### It watches the printer
+## The dashboard
 
-- **Live status** — what's printing, progress, layer, time remaining and the clock
-  time it will finish, with the model preview pulled from the sliced file.
-- **Will it finish?** — compares the sliced weight against what's left on the loaded
-  spool and warns *before* it runs dry, naming the shortfall.
-- **Confirm-first logging** — a finished print appears with name, outcome, spool and
-  grams pre-filled. One tap logs it. Nothing is deducted without your say-so.
-- **Exact grams, not estimates** — read from the sliced `.3mf` on the printer's SD
-  card. Failed prints are scaled by how far they actually got.
-- **AMS aware** — multi-material prints attribute grams per slot. Swap a filament and
-  it asks which of your spools it is, once.
+![Dashboard](docs/screenshots/dashboard.png)
 
-### It tracks the filament
+The landing page is **contextual** — each block only appears when it has something to
+say, so a quiet workshop shows a short page and a busy one surfaces exactly what needs
+attention.
 
-- **Inventory** — grouped by brand / material / colour, so multiple rolls of the same
-  filament collapse to one line. Shows the *current* roll's weight — what's actually
-  loaded — plus how many spares you hold. Weights to **0.01 g**. Rolls added by eye
-  are flagged *estimated* until weighed.
-- **Costs** — give each spool a price and it derives cost per print, spend by
-  material, money lost to failures, and the value of filament on hand. Unknown costs
-  show as `—`, never a fabricated £0.00.
-- **Reordering** — rolls below 10% raise a warning; mark a filament *reordered* or
-  *ignored* to silence it, and it re-arms when fresh stock arrives.
-- **Stats & forecast** — usage totals, success rate, breakdowns by material and month,
-  this month vs this year with history, and a **projected run-out date** per filament.
+While a print is running it leads with the model preview, progress, layer count and the
+**clock time it will finish**. Underneath sits the feature that motivated the whole
+project: it takes the sliced weight, subtracts what's already been laid down, and
+compares that against the spool actually loaded — so it can tell you **"enough filament
+to finish"**, or warn you that you're 12 g short, while there's still time to do
+something about it.
 
-### And you stay in control
+Below that: what needs confirming, what's running low, at-a-glance totals, this month
+against this year, what runs out next, and recent prints.
 
-- Log prints by hand when you want, with the same pre-flight run-dry check.
-- Edit or delete any print; spool weights are corrected automatically.
-- Weigh, refill, mark run out, or retire any roll.
-- **Contextual dashboard** — blocks appear only when they have something to say.
-- **Mobile and desktop**, dark and light themes.
-- **Backups** on every change (last 20 kept), and optional password login.
+---
+
+## Confirming a finished print
+
+![Confirming a finished print](docs/screenshots/pending.png)
+
+Nothing is ever deducted behind your back. When a print ends, it lands here already
+filled in — the model name, whether it succeeded, which AMS slot it drew from, and the
+grams read from the sliced file (the `auto` badge marks figures that came from the
+slicer rather than a guess).
+
+The spool is pre-selected from the mapping it learned the first time you used that
+slot, so confirming is usually a single click. Everything stays editable: rename the
+print, flip the outcome, correct the grams, or dismiss it entirely.
+
+For a **failed** print it scales the sliced weight by how far the print actually got,
+so a job that died at 40% doesn't charge you for the whole thing.
+
+---
+
+## Inventory
+
+![Inventory](docs/screenshots/inventory.png)
+
+Rolls are grouped by brand, material and colour, so three identical black PLAs collapse
+into one line. The weight shown is the **roll currently in use** — the one that matters
+when you're deciding whether to start a print — with spares counted alongside.
+
+The swatch is resolved from your own free-text colour name, and translucent filaments
+are drawn with a stripe so they don't look identical to their solid equivalents.
+A `~` marks a weight that's still an estimate, until you weigh the roll and confirm it.
+
+Fill bars shift from blue to amber to red as a roll runs down, and anything under 10%
+raises a reorder warning you can mark as *ordered* or *ignored*.
+
+---
+
+## Every print, costed
+
+![Print history](docs/screenshots/history.png)
+
+Give a spool its price and every print gets a cost, worked out from the grams it
+actually used. Editing a print's grams corrects the spool weight; deleting one puts the
+filament back.
+
+Costs are only ever shown when they're knowable: a print on an unpriced spool shows
+`—` rather than a fabricated £0.00, and a multi-material print where only some spools
+have prices shows a `+` suffix to say the figure is partial.
+
+---
+
+## On a phone
+
+<p align="center">
+  <img src="docs/screenshots/mobile.png" alt="Mobile dashboard" width="330">
+</p>
+
+The same app, laid out for the place you actually use it — stood at the printer.
+Navigation moves to a bottom bar, the run-out verdict stays above the fold, and tap
+targets are sized for mucky fingers. Dark theme by default, light theme a tap away.
+
+---
 
 ## Quick start
 
