@@ -267,4 +267,14 @@ web/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[PolyForm Shield 1.0.0](LICENSE) — source-available, not OSI "open source".
+
+Use it for anything you like, including commercially: run it at home, in a
+makerspace, or behind a print farm you sell parts from. Modify it, self-host it,
+share your changes.
+
+The one thing you may not do is **sell it, or offer it as a product or service that
+competes with it** — no reselling, no paid hosting of it, no repackaging it as your
+own tool.
+
+<sub>Plain-English summary, not legal advice — the [licence text](LICENSE) governs.</sub>
