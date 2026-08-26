@@ -85,3 +85,35 @@ def set_slot(data_dir, slot_key: str, spool_id: int) -> None:
 
 def read_status(data_dir) -> dict:
     return _read_json(_status_file(data_dir), {})
+
+
+# -- filament-load prompts (written by the listener on a filament swap) ------- #
+
+def _loads_dir(data_dir) -> Path:
+    return Path(data_dir) / "loads"
+
+
+def list_loads(data_dir) -> list:
+    d = _loads_dir(data_dir)
+    if not d.exists():
+        return []
+    out = [c for c in (_read_json(f, None) for f in d.glob("*.json")) if c]
+    out.sort(key=lambda c: c.get("ts", ""))
+    return out
+
+
+def read_load(data_dir, lid: str):
+    if not _SAFE_ID.fullmatch(lid or ""):
+        return None
+    f = _loads_dir(data_dir) / f"{lid}.json"
+    return _read_json(f, None) if f.exists() else None
+
+
+def delete_load(data_dir, lid: str) -> bool:
+    if not _SAFE_ID.fullmatch(lid or ""):
+        return False
+    try:
+        (_loads_dir(data_dir) / f"{lid}.json").unlink()
+        return True
+    except FileNotFoundError:
+        return False

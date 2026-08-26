@@ -67,12 +67,15 @@ check("multi: one capture", len(caps) == 1, len(caps))
 slots = sorted(m2["slot_key"] for m2 in caps[0]["materials"])
 check("multi: two materials, both trays", slots == ["01P00A000000000:0:0", "01P00A000000000:0:1"], slots)
 
-# --- failed print ----------------------------------------------------------- #
+# --- failed print (captures progress for the grams estimate) ---------------- #
 _, caps = run([
     {"print": {"gcode_state": "RUNNING", "subtask_name": "Oops", "ams": ams("2")}},
-    {"print": {"gcode_state": "FAILED", "ams": ams("2")}},
+    {"print": {"gcode_state": "RUNNING", "mc_percent": 40, "layer_num": 20, "total_layer_num": 50, "ams": ams("2")}},
+    {"print": {"gcode_state": "FAILED", "mc_percent": 0, "ams": ams("2")}},   # printer zeroes % at fail
 ])
 check("failed: status failed", caps and caps[0]["status"] == "failed", caps)
+check("failed: progress kept last-known (layer 20/50)",
+      caps[0]["progress"] == {"percent": 40, "layer": 20, "total_layers": 50}, caps[0].get("progress"))
 
 # --- external spool (tray_now 254) reads vt_tray + carries gcode_file -------- #
 _, caps = run([

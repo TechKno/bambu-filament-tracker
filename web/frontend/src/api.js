@@ -53,4 +53,6 @@ export const api = {
   pending: () => req('GET', '/pending'),
   confirmPending: (id, d) => req('POST', `/pending/${id}/confirm`, d),
   dismissPending: (id) => req('POST', `/pending/${id}/dismiss`),
+  assignLoad: (id, d) => req('POST', `/loads/${id}/assign`, d),
+  dismissLoad: (id) => req('POST', `/loads/${id}/dismiss`),
 }

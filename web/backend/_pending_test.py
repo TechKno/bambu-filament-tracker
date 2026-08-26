@@ -4,6 +4,7 @@ from pathlib import Path
 TMP = Path(tempfile.mkdtemp()); os.environ["FILAMENT_DATA_DIR"] = str(TMP)
 sys.path.insert(0, "backend" if Path("backend").exists() else ".")
 import app as a
+import pending
 c = a.app.test_client()
 ok = fail = 0
 def ck(n, cond, x=""):
@@ -57,8 +58,28 @@ write_capture(capture("cap-3"))
 r = c.post("/api/pending/cap-3/confirm", json={"usage": [{"spool_id": "skip", "slot_key": f"{SER}:0:0"}]})
 ck("confirm with nothing assigned -> 400", r.status_code == 400, r.status_code)
 
+# --- filament load prompts (feature 5) -------------------------------------- #
+def write_load(lid, slot, ttype="PLA", color="FFFFFFFF"):
+    d = TMP / "loads"; d.mkdir(exist_ok=True)
+    (d / f"{lid}.json").write_text(json.dumps({
+        "id": lid, "slot_key": f"{SER}:{slot}", "serial": SER, "printer_name": "P1S",
+        "external": slot == "ext", "ams": None, "tray": None, "type": ttype, "color": color, "ts": "2026-08-26 18:00"}))
+
+write_load("SER_ext", "ext")
+data = c.get("/api/pending").get_json()
+ck("load listed in /api/pending", len(data.get("loads", [])) == 1 and data["loads"][0]["type"] == "PLA", data.get("loads"))
+r = c.post("/api/loads/SER_ext/assign", json={"spool_id": sp["id"]})
+ck("assign ok", r.status_code == 200, (r.status_code, r.get_json()))
+ck("assign set slot_map + removed load",
+   pending.load_slot_map(TMP).get(f"{SER}:ext") == sp["id"] and len(c.get("/api/pending").get_json()["loads"]) == 0)
+write_load("SER_0_1", "0:1")
+c.post("/api/loads/SER_0_1/dismiss")
+ck("dismiss removes load without mapping",
+   len(c.get("/api/pending").get_json()["loads"]) == 0 and pending.load_slot_map(TMP).get(f"{SER}:0:1") is None)
+r = c.post("/api/loads/SER_ext/assign", json={"spool_id": "skip"})
+ck("assign requires a spool -> 400", r.status_code in (400, 404))
+
 # path traversal guard (test the id sanitiser directly)
-import pending
 victim = TMP / "victim.json"; victim.write_text("{}")
 ck("traversal id rejected by guard",
    pending.read_pending(TMP, "../victim") is None

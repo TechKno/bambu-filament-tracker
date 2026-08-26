@@ -32,6 +32,9 @@ CODES_FILE = Path(os.environ.get("PRINTER_CODES_FILE", "/secrets/printer_codes.e
 PRINTERS_FILE = Path(os.environ.get("PRINTERS_FILE", str(DATA_DIR / "printers.json")))
 PENDING_DIR = DATA_DIR / "pending"
 STATUS_FILE = DATA_DIR / "printer_status.json"
+LOADS_DIR = DATA_DIR / "loads"                     # filament-load prompts
+TRAY_STATE_FILE = DATA_DIR / "tray_state.json"     # last-seen filament per slot
+SLOT_MAP_FILE = DATA_DIR / "slot_map.json"         # slot_key -> spool_id (written by the app)
 RESCAN_SECONDS = 30
 
 # Optional recording of full merged report state, for offline analysis / future
@@ -88,6 +91,43 @@ def write_status(serial: str, status: dict) -> None:
     atomic_write(STATUS_FILE, _status)
 
 
+def _read_json(path: Path, default):
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return default
+
+
+def _slot_id(slot_key: str) -> str:
+    return slot_key.replace(":", "_")
+
+
+def current_slots(st: dict, serial: str) -> dict:
+    """{slot_key: {type,color,ams,tray,external}} for every loaded tray + external."""
+    out = {}
+    for unit in st.get("ams", {}).get("ams", []):
+        aid = unit.get("id")
+        for tr in unit.get("tray", []):
+            ttype = tr.get("tray_type") or ""
+            if not ttype:
+                continue                        # empty tray
+            out[f"{serial}:{aid}:{tr.get('id')}"] = {
+                "type": ttype, "color": tr.get("tray_color"),
+                "ams": _int(aid), "tray": _int(tr.get("id")), "external": False}
+    vt = st.get("vt_tray", {})
+    if vt.get("tray_type"):
+        out[f"{serial}:ext"] = {"type": vt.get("tray_type"), "color": vt.get("tray_color"),
+                                "ams": None, "tray": None, "external": True}
+    return out
+
+
+def _int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 class PrinterClient:
     def __init__(self, cfg: dict, code: str):
         self.cfg = cfg
@@ -106,6 +146,7 @@ class PrinterClient:
         self.client.on_disconnect = self._on_disconnect
         self.last_snap = 0.0
         self.last_gs_rec = "__start__"
+        self._tray_seen = {}
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -133,6 +174,10 @@ class PrinterClient:
         if status:
             write_status(self.serial, status)
             self._maybe_record(status)
+            try:
+                self._check_loads()
+            except Exception as e:
+                log(f"{self.name}: load-check error {e!r}")
         if capture:
             self._enrich_weights(capture)
             write_capture(capture)
@@ -156,6 +201,20 @@ class PrinterClient:
         fils = list(info.get("filaments") or [])
         mats = cap.get("materials", [])
 
+        # A failed print used only the fraction it printed — scale used_g by
+        # layer progress (falling back to time %) at the point of failure.
+        fraction = 1.0
+        if cap.get("status") == "failed":
+            prog = cap.get("progress") or {}
+            layer, total, pct = prog.get("layer"), prog.get("total_layers"), prog.get("percent")
+            if layer and total:
+                fraction = layer / total
+            elif pct:
+                fraction = pct / 100.0
+            fraction = max(0.0, min(1.0, fraction))
+            cap["printed_fraction"] = round(fraction, 3)
+        source = "gcode" if cap.get("status") == "completed" else "gcode-partial"
+
         def norm(c):
             return (c or "").lstrip("#").upper()[:6]
 
@@ -165,12 +224,48 @@ class PrinterClient:
             if match is None and len(fils) == 1 and len(mats) == 1:
                 match = fils[0]
             if match and match.get("used_g") is not None:
-                m["grams"] = round(match["used_g"], 2)
-                m["grams_source"] = "gcode"
+                m["grams"] = round(match["used_g"] * fraction, 2)
+                m["grams_source"] = source
                 fils.remove(match)
         matched = sum(1 for m in mats if m.get("grams") is not None)
         log(f"{self.name}: sliced weight {info.get('weight_g')}g total, "
-            f"{matched}/{len(mats)} material(s) auto-filled from used_g")
+            f"{matched}/{len(mats)} material(s) filled (fraction {fraction:.2f})")
+
+    def _check_loads(self):
+        """Detect a filament swap (tray type/colour change) and drop a load prompt
+        so the user can confirm which spool is now in that slot."""
+        slots = current_slots(self.monitor.state.get("print", {}), self.serial)
+        if not slots:
+            return
+        snap = {k: (v["type"], v["color"]) for k, v in slots.items()}
+        if snap == self._tray_seen:
+            return                              # nothing changed — no disk work
+        prev = _read_json(TRAY_STATE_FILE, {})
+        slot_map = _read_json(SLOT_MAP_FILE, {})
+        dirty = False
+        for key, info in slots.items():
+            cur = {"type": info["type"], "color": info["color"]}
+            old = prev.get(key)
+            if old == cur:
+                continue
+            first_seen = old is None
+            prev[key] = cur
+            dirty = True
+            if not first_seen or str(key) not in slot_map:   # real swap, or unmapped baseline
+                self._write_load(key, info)
+        if dirty:
+            atomic_write(TRAY_STATE_FILE, prev)
+        self._tray_seen = snap
+
+    def _write_load(self, slot_key, info):
+        lid = _slot_id(slot_key)
+        atomic_write(LOADS_DIR / f"{lid}.json", {
+            "id": lid, "slot_key": slot_key, "serial": self.serial, "printer_name": self.name,
+            "external": info.get("external"), "ams": info.get("ams"), "tray": info.get("tray"),
+            "type": info.get("type"), "color": info.get("color"),
+            "ts": time.strftime("%Y-%m-%d %H:%M"),
+        })
+        log(f"{self.name}: filament on {slot_key} = {info.get('type')} {info.get('color')} -> load prompt")
 
     def _maybe_record(self, status):
         if RECORD_SECONDS <= 0:

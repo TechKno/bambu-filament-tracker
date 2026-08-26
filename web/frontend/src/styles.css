@@ -130,6 +130,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pending-mat { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1.4fr) 110px; gap: 8px; align-items: center; margin: 8px 0; }
 .pending-mat-info { display: flex; align-items: center; gap: 8px; font-size: 14px; min-width: 0; }
 .bambu-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--border); flex: 0 0 auto; }
+.pending-name { flex: 1; min-width: 140px; font-weight: 600; font-size: 15px; padding: 5px 8px; }
+.linklike { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 4px; text-decoration: underline; }
+.linklike:hover { color: var(--text); }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 10px; background: var(--accent-d); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 .status-line { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .status-line .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }

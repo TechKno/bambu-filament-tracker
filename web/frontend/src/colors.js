@@ -51,6 +51,60 @@ export function isTranslucent(name) {
   return /\b(translucent|transparent|clear)\b/i.test(String(name || ''))
 }
 
+// --- colour distance + spool ranking (for pending/load suggestions) -------- #
+
+let _ctx
+function cssToRgb(color) {
+  if (!color) return null
+  try {
+    if (!_ctx) _ctx = document.createElement('canvas').getContext('2d')
+    _ctx.fillStyle = '#000000'
+    _ctx.fillStyle = color
+    const c = _ctx.fillStyle
+    if (c[0] === '#') {
+      const n = parseInt(c.slice(1, 7), 16)
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    }
+    const m = c.match(/(\d+),\s*(\d+),\s*(\d+)/)
+    return m ? [+m[1], +m[2], +m[3]] : null
+  } catch {
+    return null
+  }
+}
+
+/** RGB for a filament colour name (via resolveColor) or a raw hex. */
+export function toRgb(colorOrHex) {
+  const s = String(colorOrHex || '')
+  if (/^#?[0-9a-fA-F]{6,8}$/.test(s)) return cssToRgb('#' + s.replace('#', '').slice(0, 6))
+  return cssToRgb(resolveColor(s) || s)
+}
+
+function dist(a, b) {
+  return a && b ? Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) : 999
+}
+
+/** Rank spools by how well they match a target Bambu colour + material type.
+ *  Type match dominates, then colour distance. Each spool gets _typeMatch/_cdist. */
+export function rankSpools(spools, targetColor, targetType) {
+  const trgb = toRgb(targetColor)
+  const ttype = String(targetType || '').toUpperCase()
+  return spools
+    .map((s) => {
+      const cdist = dist(trgb, toRgb(s.color))
+      const typeMatch = !!ttype && !!s.material &&
+        (s.material.toUpperCase().includes(ttype) || ttype.includes(s.material.toUpperCase().split(' ')[0]))
+      return { ...s, _typeMatch: typeMatch, _cdist: cdist, _score: (typeMatch ? 0 : 1000) + cdist }
+    })
+    .sort((a, b) => a._score - b._score)
+}
+
+/** Best pre-selection: a remembered mapping, else a confident colour+type match. */
+export function bestGuess(color, type, suggestedId, spools) {
+  if (suggestedId) return String(suggestedId)
+  const r = rankSpools(spools, color, type)[0]
+  return r && r._typeMatch && r._cdist < 120 ? String(r.id) : ''
+}
+
 /** Return a CSS colour for a filament colour name, or null if unresolvable. */
 export function resolveColor(name) {
   const n = String(name || '').trim().toLowerCase()

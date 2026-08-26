@@ -67,7 +67,9 @@ export default function App() {
   }
 
   const spools = inv ? inv.items.flatMap((it) => it.rolls).filter((r) => !r.is_empty) : []
-  const pendCount = pend.pending?.length || 0
+  const nPrints = pend.pending?.length || 0
+  const nLoads = pend.loads?.length || 0
+  const pendCount = nPrints + nLoads
   const reloadAll = () => { loadInv(); loadPending() }
 
   async function logout() {
@@ -94,7 +96,11 @@ export default function App() {
       {pendCount > 0 && (
         <div className="banner" style={{ background: 'var(--panel-2)', border: '1px solid var(--border)' }}>
           <div className="line">
-            <b>{pendCount} print{pendCount > 1 ? 's' : ''} from the printer awaiting confirmation</b>
+            <b>
+              {[nLoads ? `${nLoads} filament load${nLoads > 1 ? 's' : ''}` : '',
+                nPrints ? `${nPrints} print${nPrints > 1 ? 's' : ''}` : '']
+                .filter(Boolean).join(' + ')} to confirm
+            </b>
             <span className="spacer" />
             <button className="btn small" onClick={() => setView('pending')}>Review</button>
           </div>
@@ -103,7 +109,7 @@ export default function App() {
       {inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
 
       {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
-      {view === 'pending' && <Pending pending={pend.pending} spools={spools} reload={reloadAll} />}
+      {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
       {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}
       {view === 'history' && <History reload={loadInv} />}
       {view === 'stats' && <Stats />}

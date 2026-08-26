@@ -323,7 +323,33 @@ def get_pending():
             # Prefer the exact grams the listener read from the sliced 3MF;
             # fall back to the AMS remaining-% delta (Bambu RFID spools only).
             m["suggested_grams"] = m["grams"] if m.get("grams") is not None else _suggest_grams(store, m, sid)
-    return jsonify(pending=items, status=pending.read_status(DATA_DIR))
+    loads = pending.list_loads(DATA_DIR)
+    for ld in loads:
+        ld["current_spool_id"] = slot_map.get(ld.get("slot_key"))
+    return jsonify(pending=items, loads=loads, status=pending.read_status(DATA_DIR))
+
+
+@app.post("/api/loads/<lid>/assign")
+@require_auth
+def assign_load(lid):
+    d = body()
+    ld = pending.read_load(DATA_DIR, lid)
+    if ld is None:
+        return jsonify(error="Load prompt not found."), 404
+    spool_id = d.get("spool_id")
+    if spool_id in (None, "", "skip"):
+        return jsonify(error="Pick a spool."), 400
+    get_store().require_spool(int(spool_id))          # validate it exists
+    pending.set_slot(DATA_DIR, ld["slot_key"], int(spool_id))
+    pending.delete_load(DATA_DIR, lid)
+    return jsonify(ok=True)
+
+
+@app.post("/api/loads/<lid>/dismiss")
+@require_auth
+def dismiss_load(lid):
+    pending.delete_load(DATA_DIR, lid)
+    return jsonify(ok=True)
 
 
 @app.post("/api/pending/<pid>/confirm")

@@ -45,6 +45,9 @@ class PrinterMonitor:
         self.start_time = None
         self.model = None
         self.gcode_file = None   # captured at start (printer clears it at finish)
+        self.last_percent = None  # progress at failure (for the failed-print estimate)
+        self.last_layer = None
+        self.total_layers = None
         self.used = {}  # tray_now(str) -> tray info dict with remain_start/end
 
     # -- ingest one report; return (capture_or_None, status_dict) ----------- #
@@ -54,6 +57,18 @@ class PrinterMonitor:
         if not isinstance(p, dict):
             return None, self.status()          # info/mc_print/etc. — ignore
         deep_merge(self.state["print"], p)
+
+        # Track last-known progress while printing (the terminal message may reset
+        # these to 0), so a failed print can estimate how far it got.
+        st = self.state["print"]
+        if self.printing:
+            mp, ln, tl = _int(st.get("mc_percent")), _int(st.get("layer_num")), _int(st.get("total_layer_num"))
+            if mp:
+                self.last_percent = mp
+            if ln:
+                self.last_layer = ln
+            if tl:
+                self.total_layers = tl
 
         gs = self.state["print"].get("gcode_state")
         capture = None
@@ -152,12 +167,15 @@ class PrinterMonitor:
             "gcode_file": self.gcode_file or st.get("gcode_file") or "",  # for the 3MF fetch
             "duration_min": int((self._now() - self.start_time).total_seconds() // 60)
                             if self.start_time else None,
+            "progress": {"percent": self.last_percent, "layer": self.last_layer,
+                         "total_layers": self.total_layers},
             "materials": materials,
         }
         self.printing = False
         self.start_time = None
         self.model = None
         self.gcode_file = None
+        self.last_percent = self.last_layer = self.total_layers = None
         self.used = {}
         return cap
 
