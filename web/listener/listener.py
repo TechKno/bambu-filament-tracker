@@ -138,11 +138,18 @@ class PrinterClient:
             write_capture(capture)
 
     def _enrich_weights(self, cap):
-        """Pull the sliced 3MF and fill each material's grams from used_g."""
-        info = bambu_ftp.fetch_weights(self.ip, self.code, cap.get("gcode_file"))
+        """Pull the sliced 3MF and fill each material's grams from used_g. Try the
+        gcode_file, then model-name variants (the printer clears gcode_file at end)."""
+        model = cap.get("model") or ""
+        candidates = [c for c in (cap.get("gcode_file"), model + ".3mf",
+                                   model + ".gcode.3mf", model + ".gcode") if c]
+        info = None
+        for name in candidates:
+            info = bambu_ftp.fetch_weights(self.ip, self.code, name)
+            if info:
+                break
         if not info:
-            log(f"{self.name}: no sliced-file weight for '{cap.get('gcode_file')}' "
-                f"(FTP miss) — grams left for manual entry")
+            log(f"{self.name}: no sliced-file weight (tried {candidates}) — grams left for manual entry")
             return
         cap["weight_g"] = info.get("weight_g")
         cap["print_time_s"] = info.get("time_s")

@@ -44,6 +44,7 @@ class PrinterMonitor:
         self.printing = False
         self.start_time = None
         self.model = None
+        self.gcode_file = None   # captured at start (printer clears it at finish)
         self.used = {}  # tray_now(str) -> tray info dict with remain_start/end
 
     # -- ingest one report; return (capture_or_None, status_dict) ----------- #
@@ -83,6 +84,7 @@ class PrinterMonitor:
         self.printing = True
         self.start_time = self._now()
         self.model = st.get("subtask_name") or st.get("gcode_file") or "Print"
+        self.gcode_file = st.get("gcode_file") or ""   # grab now; cleared at finish
         self.used = {}
         self._track_active_tray()
 
@@ -147,7 +149,7 @@ class PrinterMonitor:
             "captured_at": self._now().strftime("%Y-%m-%d %H:%M"),
             "status": status,
             "model": self.model or st.get("subtask_name") or "Print",
-            "gcode_file": st.get("gcode_file") or "",   # used to fetch the sliced 3MF
+            "gcode_file": self.gcode_file or st.get("gcode_file") or "",  # for the 3MF fetch
             "duration_min": int((self._now() - self.start_time).total_seconds() // 60)
                             if self.start_time else None,
             "materials": materials,
@@ -155,6 +157,7 @@ class PrinterMonitor:
         self.printing = False
         self.start_time = None
         self.model = None
+        self.gcode_file = None
         self.used = {}
         return cap
 
