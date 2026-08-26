@@ -1,48 +1,54 @@
 # Filament Tracker
 
-Self-hosted filament tracking for **Bambu Lab** printers. It talks to your printer
-over the local network — no cloud account — so finished prints log themselves: the
-app already knows the model, the outcome, which AMS slot fed it, and the exact
-grams from the sliced file. You confirm; it deducts.
+Self-hosted filament tracking for **Bambu Lab** printers that logs your prints for you.
 
-Built and running against a **P1S**. Should work on any Bambu printer that exposes
-LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see
-[Printer support](#printer-support).
+It talks to your printer over the local network — no cloud account — so when a print
+finishes it already knows the model, the outcome, which AMS slot fed it, and the
+**exact grams from the sliced file**. You confirm; it deducts from the right spool.
+
+Built and running against a **P1S**. Should work on any Bambu machine that exposes
+LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see [Printer support](#printer-support).
+
+> Single-user, self-hosted, LAN-only by design. No accounts, no telemetry, nothing
+> leaves your network.
+
+---
+
+## Why
+
+Filament spreadsheets die because nobody updates them. This one updates itself: the
+printer is the source of truth for what was printed, and the slicer is the source of
+truth for how much it used. The only thing left for a human is confirming which
+physical spool was loaded — and after the first time, it remembers that too.
 
 ## Features
 
 ### It watches the printer
 
 - **Live status** — what's printing, progress, layer, time remaining and the clock
-  time it will finish, with the model preview lifted from the sliced file.
-- **Will it finish?** — compares the sliced weight against what's left on the
-  loaded spool and warns *before* it runs dry, naming the shortfall.
-- **Confirm-first logging** — a finished print appears with name, outcome, spool
-  and grams pre-filled; one confirmation logs it and deducts. Nothing is deducted
-  without your say-so.
+  time it will finish, with the model preview pulled from the sliced file.
+- **Will it finish?** — compares the sliced weight against what's left on the loaded
+  spool and warns *before* it runs dry, naming the shortfall.
+- **Confirm-first logging** — a finished print appears with name, outcome, spool and
+  grams pre-filled. One tap logs it. Nothing is deducted without your say-so.
 - **Exact grams, not estimates** — read from the sliced `.3mf` on the printer's SD
-  card. Bambu's MQTT reports `remain: -1` for third-party spools, so the slicer's
-  own `used_g` is the only reliable figure — and it already includes purge/flush.
-- **Failed prints** — scaled by how far the print actually got (layer progress,
-  falling back to time), rather than charging you for the whole job.
-- **AMS aware** — multi-material prints attribute grams per slot. Swap a filament
-  and it asks which of your spools it is, once; after that, prints using that slot
-  pre-populate.
+  card. Failed prints are scaled by how far they actually got.
+- **AMS aware** — multi-material prints attribute grams per slot. Swap a filament and
+  it asks which of your spools it is, once.
 
 ### It tracks the filament
 
-- **Inventory** — grouped by brand / material / colour, so multiple rolls of the
-  same filament collapse to one line. Shows the *current* (most-depleted) roll's
-  weight — what's actually loaded — plus how many spares you hold. Weights to
-  **0.01 g**. Rolls added by eye are flagged *estimated* until weighed.
-- **Costs** — give each spool its price and the app derives cost per print, spend
-  by material, money lost to failed prints, and the value of filament on hand.
-  Unknown costs show as `—`, never a fabricated £0.00.
-- **Reordering** — rolls below 10% raise a low-stock warning; mark a filament
-  *reordered* or *ignored* to silence it, and it re-arms when fresh stock arrives.
-- **Stats & forecast** — usage totals, success rate, breakdowns by material and
-  month, this month vs this year with history, and a **projected run-out date**
-  per filament.
+- **Inventory** — grouped by brand / material / colour, so multiple rolls of the same
+  filament collapse to one line. Shows the *current* roll's weight — what's actually
+  loaded — plus how many spares you hold. Weights to **0.01 g**. Rolls added by eye
+  are flagged *estimated* until weighed.
+- **Costs** — give each spool a price and it derives cost per print, spend by
+  material, money lost to failures, and the value of filament on hand. Unknown costs
+  show as `—`, never a fabricated £0.00.
+- **Reordering** — rolls below 10% raise a warning; mark a filament *reordered* or
+  *ignored* to silence it, and it re-arms when fresh stock arrives.
+- **Stats & forecast** — usage totals, success rate, breakdowns by material and month,
+  this month vs this year with history, and a **projected run-out date** per filament.
 
 ### And you stay in control
 
@@ -56,11 +62,13 @@ LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see
 ## Quick start
 
 ```bash
-cd web
-docker compose up -d --build      # then browse to http://localhost:8087
+git clone https://github.com/TechKno/filament-tracker.git
+cd filament-tracker/web
+docker compose up -d --build
 ```
 
-Two containers start: the web app, and the listener that watches your printer.
+Open **http://localhost:8087**. Two containers start: the web app, and the listener
+that watches your printer.
 
 Then add your printer under **Printers**:
 
@@ -70,44 +78,122 @@ Then add your printer under **Printers**:
 | Serial | Printer screen → Settings → Device, e.g. `01P00C…` |
 | Access code | Printer screen → **Settings → WLAN → Access Code** |
 
-The listener connects within 30 seconds — no redeploy. Access codes are stored
+The listener connects within 30 seconds — no restart needed. Access codes are stored
 server-side and never shown again.
+
+To change the port, edit the `ports:` line in `docker-compose.yml`
+(`"8087:8000"` → `"<your-port>:8000"`).
 
 ## Printer support
 
 The listener needs two things, both on your LAN:
 
-- **MQTT** on `8883` (user `bblp`, password = LAN access code) for live state and
-  print start/finish.
-- **FTPS** on `990` (same credentials) to read the sliced `.3mf` for exact grams
-  and the model preview.
+| Protocol | Port | Credentials | Used for |
+| --- | --- | --- | --- |
+| MQTT over TLS | 8883 | `bblp` / access code | `device/<serial>/report` — live state, print start/finish |
+| FTPS (implicit) | 990 | `bblp` / access code | the sliced `.3mf` — per-filament `used_g` and plate preview |
 
-Every current Bambu machine exposes both. **LAN-only mode is fine** — in fact the
-app never touches Bambu's cloud, so it keeps working if the cloud is down.
+Both certificates are self-signed by Bambu, so verification is disabled — fine on a
+LAN. **LAN-only mode works**, and the app keeps working if Bambu's cloud is down.
 
-Notes from running this on a P1S (firmware `01.10.00.00`):
+### Bambu specifics worth knowing
 
-- `subtask_name` is the slicer *project* name, so prints often arrive called
-  something like `0.2mm layer, 3 walls, 30% infill`. Rename at the confirm step —
-  the field is editable.
-- Genuine Bambu RFID spools report a real `remain` percentage, which the app will
-  use; third-party spools report `-1`, which is why grams come from the sliced file.
-- The printer clears `gcode_file` the instant a print ends, so the filename is
-  captured at print *start*.
+These shaped the implementation, and are useful if you're adapting it:
+
+- `remain` is only meaningful for genuine Bambu RFID spools; third-party spools report
+  `-1` and `tray_weight: "0"`. That's why grams come from the sliced file.
+- Purge/flush is already baked into `used_g`, so deductions include waste — there's no
+  separate purge figure to report.
+- `gcode_file` is cleared the instant a print ends, so it's captured at print *start*.
+- `tray_now` is `254`/`255` for the external spool; AMS trays are `unit*4 + tray`. The
+  UI shows units and slots 1-based while stored keys stay 0-based.
+- `subtask_name` is the slicer *project* name, so prints often arrive called something
+  like `0.2mm layer, 3 walls, 30% infill` — hence the editable name field.
+- Tray colours arrive as `RRGGBBAA` hex; your inventory colour names are free text,
+  resolved by `src/colors.js`.
+
+## Data and secrets
+
+Everything lives in `web/data/` (bind-mounted to `/data`):
+
+| File / folder | Contents |
+| --- | --- |
+| `filament_data.json` | Spools and prints — the source of truth |
+| `backups/` | Timestamped copies, last 20 |
+| `settings.json` | Auth config (password is hashed) |
+| `printers.json` | Configured printers (not secret) |
+| `printer_status.json` | Latest live status per printer |
+| `pending/`, `loads/` | Captures and load prompts awaiting confirmation |
+| `slot_map.json`, `tray_state.json` | Remembered slot → spool mapping |
+| `thumbnails/` | Model previews from sliced files |
+| `recordings/` | Optional raw MQTT snapshots |
+
+`web/secrets/` holds printer access codes. Both folders are git-ignored and excluded
+from deployment archives, so redeploying never touches live data.
+
+On first run an empty `filament_data.json` is created; to bring existing data across,
+drop your file into `web/data/` before starting.
+
+## Development
+
+```bash
+# backend (Flask dev server on :8000)
+cd web/backend
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+FILAMENT_DATA_DIR=../data .venv/bin/python app.py
+
+# frontend (Vite on :5173, proxies /api to :8000)
+cd web/frontend
+npm install && npm run dev
+```
+
+On Windows use `.venv/Scripts/…` instead of `.venv/bin/…`. To develop against a
+running instance's data, point the proxy in `vite.config.js` at it.
+
+### Tests
+
+```bash
+python web/backend/_smoketest.py        # API surface
+python web/backend/_pending_test.py     # pending / dashboard / printers
+cd web/listener && python _parser_test.py   # MQTT parser
+cd web/listener && python _ftp_test.py      # 3MF parsing
+```
+
+All four are self-seeding and run against synthetic Bambu payloads — **no printer
+needed**. Roughly 95 checks covering the deduction maths, confirm-first flow,
+cost/period logic, and the parser's state machine.
 
 ## Layout
 
-| Path | What it is |
-| --- | --- |
-| [`web/`](web/) | The app — React SPA, Flask API, MQTT listener, Docker |
-| [`design/`](design/) | Design brief used to commission the UI |
-| `design_handoff_filament_tracker/` | The resulting design spec and prototype |
-
-Full setup, development and testing notes are in [web/README.md](web/README.md).
+```
+web/
+  backend/
+    core.py        # domain model + business logic (data, prints, stats, forecast)
+    app.py         # Flask API + serves the built SPA
+    pending.py     # confirm-first capture store
+  listener/
+    listener.py    # MQTT client, per-printer
+    parser.py      # pure Bambu report parser (unit-tested, no I/O)
+    bambu_ftp.py   # implicit-FTPS 3MF fetch: per-filament grams + preview
+  frontend/src/
+    pages/         # one file per screen
+    components/    # SpoolIcon, Modal, Login
+    colors.js      # filament colour resolution + spool ranking
+    api.js         # fetch wrapper and display formatters
+    styles.css     # design system: tokens, type, shared components
+  data/            # runtime data (volume)
+  secrets/         # printer access codes (volume)
+```
 
 ## Notes
 
-- **Data is not committed.** Inventory, backups, thumbnails, secrets and build
-  output are git-ignored; the running instance is the source of truth.
-- Currency is GBP and timestamps are UK local (`TZ=Europe/London`); both are one
-  line to change.
+- Timestamps are local (`TZ=Europe/London` in `docker-compose.yml`; handles GMT/BST).
+- Currency is GBP — one line in `src/api.js`.
+- One gunicorn worker keeps JSON writes serialised, which is correct for a
+  single-user tool. It is not built for concurrent writers.
+- `styles-legacy.css` holds styling for screens not yet rebuilt against the current
+  design system; it shrinks as each screen is converted.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
