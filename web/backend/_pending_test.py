@@ -88,16 +88,29 @@ def set_status(**kw):
 
 d = c.get("/api/dashboard").get_json()
 ck("dashboard shape", all(k in d for k in ("now", "periods", "recent", "forecast")), list(d))
+ck("now keys asserted (frontend reads them unguarded)",
+   {"spools", "inventory_value", "prints_all_time"} <= set(d["now"]), d["now"])
+ck("prints_all_time counts resolved prints only",
+   d["now"]["prints_all_time"] == d["periods"]["year_stats"]["prints"],
+   (d["now"]["prints_all_time"], d["periods"]["year_stats"]["prints"]))
 ck("friendly month label", " " in d["periods"]["selected_label"]
    and d["periods"]["selected_label"].split()[0].isalpha(), d["periods"]["selected_label"])
 ck("month and year stats present",
-   {"grams", "cost", "prints", "success_rate", "wasted_g"} <= set(d["periods"]["month_stats"]),
+   {"grams", "cost", "cost_status", "prints", "success_rate", "wasted_g"} <= set(d["periods"]["month_stats"]),
    d["periods"]["month_stats"])
 ck("this month counts the logged print", d["periods"]["month_stats"]["prints"] >= 1, d["periods"]["month_stats"])
 ck("year >= month", d["periods"]["year_stats"]["grams"] >= d["periods"]["month_stats"]["grams"])
-# paging back to an empty month gives zeros, not an error
+ck("priced print -> month cost_status full",
+   d["periods"]["month_stats"]["cost_status"] == "full", d["periods"]["month_stats"])
+# a well-formed empty month is honoured with zeros, not silently swapped
 old = c.get("/api/dashboard?month=2020-01").get_json()["periods"]
-ck("unknown month falls back to current", old["is_current_month"] is True, old["selected"])
+ck("empty month honoured", old["selected"] == "2020-01" and old["is_current_month"] is False
+   and old["month_stats"]["prints"] == 0, (old["selected"], old["month_stats"]["prints"]))
+ck("empty month cost_status none (renders as dash, not £0.00)",
+   old["month_stats"]["cost_status"] == "none", old["month_stats"])
+# garbage month param still falls back safely
+bad = c.get("/api/dashboard?month=DROP TABLE").get_json()["periods"]
+ck("malformed month falls back to current", bad["is_current_month"] is True, bad["selected"])
 
 # projection: 100g job, 50% done -> needs 50g. Spool (900g left) is fine.
 set_status(weight_g=100, active_slots=[f"{SER}:ext"], filaments=[{"type": "PLA", "used_g": 100}])
@@ -116,8 +129,19 @@ ck("shortfall detected (needs 50, has 20)", pr[0]["enough"] is False and pr[0]["
 
 # unattributable multi-material -> stays quiet rather than guessing
 set_status(weight_g=100, active_slots=[f"{SER}:ext", f"{SER}:0:0"], filaments=[])
-ck("ambiguous multi-material -> no projection",
-   c.get("/api/dashboard").get_json()["printers"][0]["projection"] == [])
+p0 = c.get("/api/dashboard").get_json()["printers"][0]
+ck("ambiguous multi-material -> no projection", p0["projection"] == [])
+ck("ambiguous -> cost_status none (not a confident figure)", p0["cost_status"] == "none", p0["cost_status"])
+
+# a 0g filament is a legitimate value, not missing data: attribution proceeds
+# (slot 0:3 has deliberately never been mapped to a spool)
+set_status(weight_g=100, active_slots=[f"{SER}:ext", f"{SER}:0:3"],
+           filaments=[{"type": "PLA", "used_g": 100.0}, {"type": "PLA", "used_g": 0.0}])
+p0 = c.get("/api/dashboard").get_json()["printers"][0]
+ck("0g filament does not kill the projection",
+   len(p0["projection"]) == 1 and p0["projection"][0]["needed_g"] == 50.0, p0["projection"])
+# ...but the unmapped second slot keeps the cost honest: partial, not full
+ck("dropped slot downgrades cost_status to partial", p0["cost_status"] == "partial", p0["cost_status"])
 
 # idle printer -> no projection
 set_status(printing=False, gcode_state="FINISH", weight_g=None, active_slots=[])

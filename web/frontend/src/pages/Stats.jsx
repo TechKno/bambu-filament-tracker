@@ -62,7 +62,7 @@ export default function Stats() {
           {s.by_month.length === 0 && <p className="muted">No usage yet.</p>}
           <table><tbody>
             {s.by_month.map((m) => (
-              <tr key={m.month}><td>{m.month}</td><td className="num">{grams(m.grams)} g</td></tr>
+              <tr key={m.month}><td>{m.label || m.month}</td><td className="num">{grams(m.grams)} g</td></tr>
             ))}
           </tbody></table>
         </div>

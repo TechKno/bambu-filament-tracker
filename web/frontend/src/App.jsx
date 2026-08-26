@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, thumbUrl } from './api.js'
 import Login from './components/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -38,11 +38,16 @@ export default function App() {
     catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
   }, [])
 
+  // Kept separate: loadPending is month-independent (stable identity), so the
+  // poll interval below is created once; only loadDash re-keys on the month.
   const loadPending = useCallback(async () => {
-    try {
-      const [p, d] = await Promise.all([api.pending(), api.dashboard(month)])
-      setPend(p); setDash(d)
-    } catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
+    try { setPend(await api.pending()) }
+    catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
+  }, [])
+
+  const loadDash = useCallback(async () => {
+    try { setDash(await api.dashboard(month)) }
+    catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
   }, [month])
 
   const checkAuth = useCallback(async () => {
@@ -52,13 +57,18 @@ export default function App() {
 
   useEffect(() => { checkAuth() }, [checkAuth])
   useEffect(() => { if (auth.authed) { loadInv(); loadPending() } }, [auth.authed, loadInv, loadPending])
+  useEffect(() => { if (auth.authed) loadDash() }, [auth.authed, loadDash])   // month arrows refetch only this
 
   // Live-refresh printer status + pending captures while signed in. Poll every
   // 5s when the tab is visible, and refetch immediately on focus/visibility —
   // browsers throttle timers in background tabs, so focus is the reliable path.
+  // The interval reads the latest loaders through a ref, so it is created once
+  // per session instead of being torn down whenever a dependency changes.
+  const tickRef = useRef(() => {})
+  useEffect(() => { tickRef.current = () => { loadPending(); loadDash() } }, [loadPending, loadDash])
   useEffect(() => {
     if (!auth.authed) return
-    const refresh = () => { if (document.visibilityState === 'visible') loadPending() }
+    const refresh = () => { if (document.visibilityState === 'visible') tickRef.current() }
     const t = setInterval(refresh, 5000)
     document.addEventListener('visibilitychange', refresh)
     window.addEventListener('focus', refresh)
@@ -67,7 +77,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', refresh)
       window.removeEventListener('focus', refresh)
     }
-  }, [auth.authed, loadPending])
+  }, [auth.authed])
 
   if (auth.loading) return <div className="app"><p className="muted" style={{ marginTop: 40 }}>Loading…</p></div>
   if (auth.enabled && !auth.authed) {
@@ -78,7 +88,7 @@ export default function App() {
   const nPrints = pend.pending?.length || 0
   const nLoads = pend.loads?.length || 0
   const pendCount = nPrints + nLoads
-  const reloadAll = () => { loadInv(); loadPending() }
+  const reloadAll = () => { loadInv(); loadPending(); loadDash() }
 
   async function logout() {
     await api.logout()
@@ -116,7 +126,7 @@ export default function App() {
       )}
       {view !== 'dashboard' && inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
 
-      {view === 'dashboard' && <Dashboard data={dash} go={setView} month={month} setMonth={setMonth} />}
+      {view === 'dashboard' && <Dashboard data={dash} go={setView} setMonth={setMonth} />}
       {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
       {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
       {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}

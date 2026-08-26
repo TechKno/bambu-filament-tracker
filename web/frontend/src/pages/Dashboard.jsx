@@ -13,16 +13,18 @@ const fmtEta = (min) => {
 
 // Clock time the print should finish, from the minutes the printer reports.
 const finishTime = (min) => {
-  if (!min) return null
+  if (min == null) return null
   const end = new Date(Date.now() + min * 60000)
   const hhmm = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  const days = Math.round((end.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
+  // Day delta from copies — never mutate the Date the display string came from.
+  const midnight = (d) => new Date(d).setHours(0, 0, 0, 0)
+  const days = Math.round((midnight(end) - midnight(new Date())) / 86400000)
   if (days === 0) return hhmm
   if (days === 1) return `${hhmm} tomorrow`
   return `${hhmm} in ${days} days`
 }
 
-export default function Dashboard({ data, go, month, setMonth }) {
+export default function Dashboard({ data, go, setMonth }) {
   if (!data) return <p className="muted">Loading…</p>
 
   const printing = (data.printers || []).filter((p) => p.printing)
@@ -87,7 +89,7 @@ export default function Dashboard({ data, go, month, setMonth }) {
           <Tile big={money(data.now.inventory_value)} lbl="filament value" onClick={() => go('inventory')} />
           <Tile big={data.now.prints_all_time} lbl="prints all time" onClick={() => go('history')} />
         </div>
-        <Periods periods={data.periods} month={month} setMonth={setMonth} />
+        <Periods periods={data.periods} setMonth={setMonth} />
       </div>
 
       {data.forecast?.length > 0 && (
@@ -160,9 +162,14 @@ function ActivePrint({ p }) {
           </div>
           <div className="dash-eta">
             <span>{pct}% complete</span>
-            {!paused && p.remaining_min ? (
-              <span><b>Finishes ~{finishTime(p.remaining_min)}</b> · {fmtEta(p.remaining_min)} left</span>
-            ) : paused ? <span className="muted">paused</span> : null}
+            {p.remaining_min > 0 ? (
+              <span>
+                <b>Finishes ~{finishTime(p.remaining_min)}{paused ? ' (if resumed)' : ''}</b>
+                {' '}· {fmtEta(p.remaining_min)} left
+              </span>
+            ) : p.remaining_min === 0 && !paused ? (
+              <span><b>Finishing now</b></span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -195,7 +202,18 @@ function ActivePrint({ p }) {
 
 // Month vs year side by side, with arrows to page back through months that
 // have prints (the current month is always offered, even if empty).
-function Periods({ periods, month, setMonth }) {
+// A period cost is only as knowable as its spool prices: '—' when nothing is
+// priced (matching History), a '+' suffix when only some prints are priced.
+const periodCost = (s) =>
+  s.cost_status === 'none' ? '—' : money(s.cost) + (s.cost_status === 'partial' ? '+' : '')
+
+const periodWaste = (s) => {
+  if (!s.failed) return '—'
+  const g = `${grams(s.wasted_g)} g`
+  return s.cost_status === 'none' ? g : `${g} · ${money(s.wasted_cost)}${s.cost_status === 'partial' ? '+' : ''}`
+}
+
+function Periods({ periods, setMonth }) {
   const list = periods.available
   const i = list.indexOf(periods.selected)
   const older = i >= 0 && i < list.length - 1 ? list[i + 1] : null
@@ -204,12 +222,11 @@ function Periods({ periods, month, setMonth }) {
 
   const rows = [
     ['Filament used', `${grams(m.grams)} g`, `${grams(y.grams)} g`],
-    ['Cost', money(m.cost), money(y.cost)],
+    ['Cost', periodCost(m), periodCost(y)],
     ['Prints', m.prints, y.prints],
     ['Success rate', m.success_rate == null ? '—' : `${m.success_rate}%`,
       y.success_rate == null ? '—' : `${y.success_rate}%`],
-    ['Lost to failures', m.failed ? `${grams(m.wasted_g)} g · ${money(m.wasted_cost)}` : '—',
-      y.failed ? `${grams(y.wasted_g)} g · ${money(y.wasted_cost)}` : '—'],
+    ['Lost to failures', periodWaste(m), periodWaste(y)],
     ['Average per print', m.avg_g == null ? '—' : `${grams(m.avg_g)} g`,
       y.avg_g == null ? '—' : `${grams(y.avg_g)} g`],
   ]

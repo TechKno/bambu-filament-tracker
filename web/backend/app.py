@@ -364,41 +364,40 @@ def _live_projection(store, st, slot_map):
     slots = st.get("active_slots") or []
     pct = st.get("percent")
     if not weight or not slots or pct is None:
-        return []
+        return [], 0
     left_fraction = max(0.0, 1.0 - (pct / 100.0))
     fils = st.get("filaments") or []
 
     shares = {}
     if len(slots) == 1:
         shares[slots[0]] = weight
-    elif len(fils) == len(slots) and all(f.get("used_g") for f in fils):
+    # `is not None`: 0 g is a legitimate value (an unused tool), not missing data.
+    elif len(fils) == len(slots) and all(f.get("used_g") is not None for f in fils):
         # Same count: attribute in order (the slicer lists filaments in tool order).
         for slot, f in zip(slots, fils):
             shares[slot] = f["used_g"]
     else:
-        return []                                   # can't attribute — stay quiet
+        return [], len(slots)                       # can't attribute — stay quiet
 
     out = []
     for slot, planned in shares.items():
         spool = store.get_spool(slot_map.get(slot))
         if spool is None:
-            continue
+            continue                # unmapped slot: stays in the total_slots count
         need = planned * left_fraction
         out.append({
             "slot_key": slot,
             "spool_id": spool.id,
             "label": spool.label,
             "color": spool.color,
-            "planned_g": round(planned, 2),
             "needed_g": round(need, 2),
             "remaining_g": round(spool.remaining_g, 2),
             "estimated": spool.estimated,
             "enough": spool.remaining_g >= need,
             "short_by": round(max(0.0, need - spool.remaining_g), 2),
-            # What this print costs in this filament (None if the spool has no price).
-            "cost": round(planned * spool.cost_per_g, 2) if spool.has_price else None,
+            "cost": core.line_cost(spool, planned),
         })
-    return out
+    return out, len(shares)
 
 
 @app.get("/api/dashboard")
@@ -410,13 +409,13 @@ def dashboard():
 
     printers = []
     for serial, st in status.items():
-        proj = _live_projection(store, st, slot_map)
+        # total_slots is the pre-filter slot count, so a slot dropped for having
+        # no spool mapping correctly downgrades the status to "partial".
+        proj, total_slots = _live_projection(store, st, slot_map)
         priced = [p["cost"] for p in proj if p["cost"] is not None]
         printers.append({**st, "projection": proj,
-                         # Cost of the whole job; "partial" if some spools lack a price.
                          "cost": round(sum(priced), 2) if priced else None,
-                         "cost_status": ("full" if proj and len(priced) == len(proj)
-                                         else "partial" if priced else "none")})
+                         "cost_status": core.cost_status(len(priced), total_slots)})
     printers.sort(key=lambda p: (not p.get("printing"), p.get("name") or ""))
 
     loads = pending.list_loads(DATA_DIR)
@@ -424,8 +423,6 @@ def dashboard():
         ld["current_spool_id"] = slot_map.get(ld.get("slot_key"))
 
     reorder = core.reorder_overview(store)
-    stats = core.stats_view(store)
-    history = core.history_view(store)
     periods = core.periods_view(store, request.args.get("month"))
 
     return jsonify(
@@ -434,14 +431,16 @@ def dashboard():
         loads=loads,
         needs_reorder=[r for r in reorder if r["state"] == "needs"],
         in_progress=core.in_progress(store),
-        recent=history[:5],
-        forecast=stats["forecast"]["ready"][:3],
+        recent=core.history_view(store, limit=5),
+        forecast=core.forecast_view(store)["ready"][:3],
         periods=periods,
-        # Point-in-time figures (not period-based).
+        # Point-in-time figures (not period-based). prints_all_time counts
+        # resolved prints, matching the Periods denominator beside it.
         now={
             "spools": len([s for s in store.spools if not s.is_empty]),
-            "inventory_value": stats["inventory_value"],
-            "prints_all_time": stats["total_prints"],
+            "inventory_value": round(sum(s.remaining_value for s in store.spools), 2),
+            "prints_all_time": len([p for p in store.prints
+                                    if p.status in ("completed", "failed")]),
         },
     )
 

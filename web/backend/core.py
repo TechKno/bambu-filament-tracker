@@ -14,6 +14,7 @@ made by the CLI load as-is.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, date
@@ -455,6 +456,21 @@ def _grouped(store: Store) -> dict:
     return groups
 
 
+def line_cost(spool, grams: float):
+    """Money value of `grams` drawn from `spool`; None when unpriceable.
+    The one place the grams->money rule lives — every cost display uses it."""
+    if spool is None or not spool.has_price:
+        return None
+    return round(grams * spool.cost_per_g, 2)
+
+
+def cost_status(priced: int, total: int) -> str:
+    """The one full/partial/none ladder, shared by logged prints and live jobs."""
+    if total and priced == total:
+        return "full"
+    return "partial" if priced else "none"
+
+
 def print_cost(store: Store, job: PrintJob) -> tuple:
     """Cost of a print at current spool prices. Returns (cost, status) where
     status is 'full' (all materials priced), 'partial' (some), or 'none'."""
@@ -465,8 +481,7 @@ def print_cost(store: Store, job: PrintJob) -> tuple:
         if s is not None and s.has_price:
             cost += u.grams * s.cost_per_g
             priced += 1
-    status = "full" if (total and priced == total) else ("partial" if priced else "none")
-    return cost, status
+    return cost, cost_status(priced, total)
 
 
 def inventory_view(store: Store) -> list:
@@ -541,24 +556,26 @@ def _usage_with_labels(store: Store, job: PrintJob) -> list:
     out = []
     for u in job.usage:
         s = store.get_spool(u.spool_id)
-        line_cost = round(u.grams * s.cost_per_g, 2) if (s and s.has_price) else None
         out.append({
             "spool_id": u.spool_id,
             "grams": u.grams,
             "label": s.label if s else f"(deleted spool #{u.spool_id})",
-            "cost": line_cost,
+            "cost": line_cost(s, u.grams),
         })
     return out
 
 
-def history_view(store: Store) -> list:
+def history_view(store: Store, limit: Optional[int] = None) -> list:
+    prints = sorted(store.prints, key=lambda p: p.id, reverse=True)
+    if limit:
+        prints = prints[:limit]              # enrich only what will be shown
     out = []
-    for p in sorted(store.prints, key=lambda p: p.id, reverse=True):
-        cost, cost_status = print_cost(store, p)
+    for p in prints:
+        cost, cstatus = print_cost(store, p)
         out.append({
             "id": p.id, "name": p.name, "date": p.date, "status": p.status,
             "total_g": round(sum(u.grams for u in p.usage), 2),
-            "cost": round(cost, 2), "cost_status": cost_status,
+            "cost": round(cost, 2), "cost_status": cstatus,
             "thumbnail": p.thumbnail or None,
             "usage": _usage_with_labels(store, p),
         })
@@ -616,13 +633,16 @@ def stats_view(store: Store) -> dict:
         "tracking_days": (today - min(days)).days if days else 0,
         "by_material": [{"material": m, "grams": round(v["grams"], 2), "cost": round(v["cost"], 2)}
                         for m, v in sorted(by_mat.items(), key=lambda kv: -kv[1]["grams"])],
-        "by_month": [{"month": k, "grams": round(by_month[k], 2)} for k in sorted(by_month)],
+        "by_month": [{"month": k, "label": month_label(k), "grams": round(by_month[k], 2)}
+                     for k in sorted(by_month)],
         "forecast": forecast_view(store, today),
     }
 
 
 def _print_rows(store: Store) -> list:
-    """Flatten resolved prints to {day, grams, cost, failed} for period maths."""
+    """Flatten resolved prints to {ym, grams, cost, cstatus, failed} for period
+    maths. `ym` is computed once here — the single definition of which month a
+    print belongs to."""
     rows = []
     for p in store.prints:
         if p.status not in ("completed", "failed"):
@@ -630,25 +650,44 @@ def _print_rows(store: Store) -> list:
         d = _print_day(p)
         if not d:
             continue
-        cost, _ = print_cost(store, p)
-        rows.append({"day": d, "grams": sum(u.grams for u in p.usage),
-                     "cost": cost, "failed": p.status == "failed"})
+        cost, cstatus = print_cost(store, p)
+        rows.append({"ym": f"{d.year:04d}-{d.month:02d}",
+                     "grams": sum(u.grams for u in p.usage),
+                     "cost": cost, "cstatus": cstatus,
+                     "failed": p.status == "failed"})
     return rows
 
 
 def _aggregate(rows: list) -> dict:
-    done = [r for r in rows if not r["failed"]]
-    fails = [r for r in rows if r["failed"]]
+    """Single-pass accumulation. Carries a cost_status so the UI can tell a
+    genuinely free period from one whose spools simply have no price."""
+    total_g = fail_g = cost = fail_cost = 0.0
+    done = failed = full = any_priced = 0
+    for r in rows:
+        total_g += r["grams"]
+        cost += r["cost"]
+        if r["failed"]:
+            failed += 1
+            fail_g += r["grams"]
+            fail_cost += r["cost"]
+        else:
+            done += 1
+        if r["cstatus"] == "full":
+            full += 1
+        if r["cstatus"] != "none":
+            any_priced += 1
+    n = len(rows)
     return {
-        "prints": len(rows),
-        "completed": len(done),
-        "failed": len(fails),
-        "grams": round(sum(r["grams"] for r in rows), 2),
-        "cost": round(sum(r["cost"] for r in rows), 2),
-        "success_rate": round(len(done) / len(rows) * 100) if rows else None,
-        "wasted_g": round(sum(r["grams"] for r in fails), 2),
-        "wasted_cost": round(sum(r["cost"] for r in fails), 2),
-        "avg_g": round(sum(r["grams"] for r in rows) / len(rows), 2) if rows else None,
+        "prints": n,
+        "completed": done,
+        "failed": failed,
+        "grams": round(total_g, 2),
+        "cost": round(cost, 2),
+        "cost_status": "full" if (n and full == n) else ("partial" if any_priced else "none"),
+        "success_rate": round(done / n * 100) if n else None,
+        "wasted_g": round(fail_g, 2),
+        "wasted_cost": round(fail_cost, 2),
+        "avg_g": round(total_g / n, 2) if n else None,
     }
 
 
@@ -661,12 +700,13 @@ def month_label(ym: str) -> str:
 
 def periods_view(store: Store, month: Optional[str] = None) -> dict:
     """Stats for one month and its year, plus the months that have data so the
-    dashboard can page back through history."""
+    dashboard can page back through history. A well-formed requested month is
+    honoured even when it has no prints (zeros are honest; silently swapping in
+    the current month strands the client's state)."""
     rows = _print_rows(store)
-    now = datetime.now()
-    current = now.strftime("%Y-%m")
-    available = sorted({r["day"].strftime("%Y-%m") for r in rows} | {current}, reverse=True)
-    sel = month if month in available else current
+    current = datetime.now().strftime("%Y-%m")
+    available = sorted({r["ym"] for r in rows} | {current}, reverse=True)
+    sel = month if (month and re.fullmatch(r"\d{4}-\d{2}", month)) else current
     year = sel[:4]
     return {
         "selected": sel,
@@ -674,8 +714,8 @@ def periods_view(store: Store, month: Optional[str] = None) -> dict:
         "is_current_month": sel == current,
         "year": year,
         "available": available,
-        "month_stats": _aggregate([r for r in rows if r["day"].strftime("%Y-%m") == sel]),
-        "year_stats": _aggregate([r for r in rows if r["day"].strftime("%Y") == year]),
+        "month_stats": _aggregate([r for r in rows if r["ym"] == sel]),
+        "year_stats": _aggregate([r for r in rows if r["ym"][:4] == year]),
     }
 
 
