@@ -139,6 +139,33 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .thumb-lg { width: 56px; height: 56px; }
 .thumb-live { width: 64px; height: 64px; }
 .status-block { display: flex; gap: 12px; align-items: center; padding: 2px 0; }
+
+/* dashboard */
+.dash-active { border-color: #2e5d38; }
+.dash-active-head { display: flex; gap: 16px; align-items: flex-start; }
+.dash-active-img { width: 120px; height: 120px; border-radius: 8px; object-fit: cover;
+                   background: #e9e9e9; border: 1px solid var(--border); flex: 0 0 auto; }
+.dash-active-name { font-size: 17px; font-weight: 600; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.dash-proj { margin-top: 14px; }
+.dash-ok { color: #79d98c; font-size: 13px; }
+.dash-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 8px; cursor: pointer; }
+.dash-row:hover { background: var(--panel-2); }
+.dash-row-icon { width: 22px; display: flex; justify-content: center; flex: 0 0 auto; font-size: 15px; }
+.dash-tile { cursor: pointer; }
+.dash-tile:hover { border-color: var(--accent); }
+.dash-quiet { display: flex; gap: 14px; align-items: center; }
+.dash-quiet-mark { width: 38px; height: 38px; border-radius: 50%; background: #16341f; color: #79d98c;
+                   display: flex; align-items: center; justify-content: center; font-size: 19px; flex: 0 0 auto; }
+.dash-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.dash-card-img { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover;
+                 background: #e9e9e9; border: 1px solid var(--border); display: block; }
+.dash-card-empty { display: flex; align-items: center; justify-content: center;
+                   background: var(--panel-2); color: var(--muted); font-size: 11px; }
+.dash-card-name { font-size: 13px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 620px) {
+  .dash-active-head { flex-direction: column; }
+  .dash-active-img { width: 100%; height: 160px; }
+}
 .hist-name { display: flex; gap: 10px; align-items: center; }
 
 /* printers panel */

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, thumbUrl } from './api.js'
 import Login from './components/Login.jsx'
+import Dashboard from './pages/Dashboard.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Pending from './pages/Pending.jsx'
 import LogPrint from './pages/LogPrint.jsx'
@@ -12,6 +13,7 @@ import Printers from './pages/Printers.jsx'
 import ResolveModal from './pages/ResolveModal.jsx'
 
 const TABS = [
+  ['dashboard', 'Dashboard'],
   ['inventory', 'Inventory'],
   ['pending', 'Pending'],
   ['log', 'Log print'],
@@ -24,9 +26,10 @@ const TABS = [
 
 export default function App() {
   const [auth, setAuth] = useState({ loading: true, enabled: false, authed: false })
-  const [view, setView] = useState('inventory')
+  const [view, setView] = useState('dashboard')
   const [inv, setInv] = useState(null)
   const [pend, setPend] = useState({ pending: [], status: {} })
+  const [dash, setDash] = useState(null)
   const [resolveTarget, setResolveTarget] = useState(null)
 
   const loadInv = useCallback(async () => {
@@ -35,8 +38,10 @@ export default function App() {
   }, [])
 
   const loadPending = useCallback(async () => {
-    try { setPend(await api.pending()) }
-    catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
+    try {
+      const [p, d] = await Promise.all([api.pending(), api.dashboard()])
+      setPend(p); setDash(d)
+    } catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
   }, [])
 
   const checkAuth = useCallback(async () => {
@@ -94,8 +99,8 @@ export default function App() {
         </nav>
       </header>
 
-      <PrinterStatus status={pend.status} />
-      {pendCount > 0 && (
+      {view !== 'dashboard' && <PrinterStatus status={pend.status} />}
+      {view !== 'dashboard' && pendCount > 0 && (
         <div className="banner" style={{ background: 'var(--panel-2)', border: '1px solid var(--border)' }}>
           <div className="line">
             <b>
@@ -108,8 +113,9 @@ export default function App() {
           </div>
         </div>
       )}
-      {inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
+      {view !== 'dashboard' && inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
 
+      {view === 'dashboard' && <Dashboard data={dash} go={setView} />}
       {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
       {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
       {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}

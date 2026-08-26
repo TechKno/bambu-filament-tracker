@@ -175,7 +175,10 @@ class PrinterClient:
             log(f"{self.name}: parse error {e!r}")
             return
         if status:
-            status["thumbnail"] = self._live_thumb(status)
+            live = self._live_info(status)
+            status["thumbnail"] = live.get("thumbnail")
+            status["weight_g"] = live.get("weight_g")
+            status["filaments"] = live.get("filaments") or []
             write_status(self.serial, status)
             self._maybe_record(status)
             try:
@@ -186,34 +189,36 @@ class PrinterClient:
             self._enrich_weights(capture)
             write_capture(capture)
 
-    def _live_thumb(self, status):
-        """Preview for the job currently printing. Fetched once per job (the FTP
-        pull is slow-ish), cached under a name derived from the gcode file."""
+    def _live_info(self, status):
+        """Sliced-file details for the job currently printing: preview image and
+        planned weight. Fetched once per job (the FTP pull is slow-ish) and cached
+        in memory, so the dashboard can project whether the spools will last."""
         if not status.get("printing"):
             self._live_job = None
-            return None
+            return {}
         gf = status.get("gcode_file") or status.get("model") or ""
         if not gf:
-            return None
+            return {}
         if self._live_job and self._live_job[0] == gf:
             return self._live_job[1]            # already resolved (or known-missing)
-        name = "live-" + re.sub(r"[^A-Za-z0-9._-]", "_", gf)[:80] + ".png"
-        out = THUMB_DIR / name
-        if not out.exists():
-            info = bambu_ftp.fetch_weights(self.ip, self.code, gf)
-            thumb = (info or {}).get("thumbnail")
-            if not thumb:
-                self._live_job = (gf, None)
-                return None
+
+        info = bambu_ftp.fetch_weights(self.ip, self.code, gf) or {}
+        out = {"weight_g": info.get("weight_g"),
+               "filaments": [{k: f.get(k) for k in ("type", "color", "used_g")}
+                             for f in (info.get("filaments") or [])]}
+        thumb = info.get("thumbnail")
+        if thumb:
+            name = "live-" + re.sub(r"[^A-Za-z0-9._-]", "_", gf)[:80] + ".png"
             try:
                 THUMB_DIR.mkdir(parents=True, exist_ok=True)
-                out.write_bytes(thumb)
+                (THUMB_DIR / name).write_bytes(thumb)
+                out["thumbnail"] = name
             except Exception:
-                self._live_job = (gf, None)
-                return None
-            log(f"{self.name}: live preview saved for '{gf}'")
-        self._live_job = (gf, name)
-        return name
+                pass
+        log(f"{self.name}: live job '{gf}' — {out.get('weight_g')}g planned"
+            f"{', preview saved' if out.get('thumbnail') else ''}")
+        self._live_job = (gf, out)
+        return out
 
     def _enrich_weights(self, cap):
         """Pull the sliced 3MF and fill each material's grams from used_g. Try the

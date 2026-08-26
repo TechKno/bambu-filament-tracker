@@ -17,6 +17,7 @@ import json
 import os
 import re
 import secrets
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
@@ -351,6 +352,93 @@ def assign_load(lid):
 def dismiss_load(lid):
     pending.delete_load(DATA_DIR, lid)
     return jsonify(ok=True)
+
+
+def _live_projection(store, st, slot_map):
+    """Will the loaded spool(s) survive the rest of this print?
+
+    Uses the sliced weight and how far through we are. With one active slot the
+    split is exact; with several we apportion by the slicer's per-filament used_g
+    and skip the check if we can't attribute confidently."""
+    weight = st.get("weight_g")
+    slots = st.get("active_slots") or []
+    pct = st.get("percent")
+    if not weight or not slots or pct is None:
+        return []
+    left_fraction = max(0.0, 1.0 - (pct / 100.0))
+    fils = st.get("filaments") or []
+
+    shares = {}
+    if len(slots) == 1:
+        shares[slots[0]] = weight
+    elif len(fils) == len(slots) and all(f.get("used_g") for f in fils):
+        # Same count: attribute in order (the slicer lists filaments in tool order).
+        for slot, f in zip(slots, fils):
+            shares[slot] = f["used_g"]
+    else:
+        return []                                   # can't attribute — stay quiet
+
+    out = []
+    for slot, planned in shares.items():
+        spool = store.get_spool(slot_map.get(slot))
+        if spool is None:
+            continue
+        need = planned * left_fraction
+        out.append({
+            "slot_key": slot,
+            "spool_id": spool.id,
+            "label": spool.label,
+            "color": spool.color,
+            "needed_g": round(need, 2),
+            "remaining_g": round(spool.remaining_g, 2),
+            "estimated": spool.estimated,
+            "enough": spool.remaining_g >= need,
+            "short_by": round(max(0.0, need - spool.remaining_g), 2),
+        })
+    return out
+
+
+@app.get("/api/dashboard")
+@require_auth
+def dashboard():
+    store = get_store()
+    status = pending.read_status(DATA_DIR)
+    slot_map = pending.load_slot_map(DATA_DIR)
+
+    printers = []
+    for serial, st in status.items():
+        printers.append({**st, "projection": _live_projection(store, st, slot_map)})
+    printers.sort(key=lambda p: (not p.get("printing"), p.get("name") or ""))
+
+    loads = pending.list_loads(DATA_DIR)
+    for ld in loads:
+        ld["current_spool_id"] = slot_map.get(ld.get("slot_key"))
+
+    reorder = core.reorder_overview(store)
+    stats = core.stats_view(store)
+    history = core.history_view(store)
+
+    month = datetime.now().strftime("%Y-%m")
+    month_g = next((m["grams"] for m in stats["by_month"] if m["month"] == month), 0.0)
+
+    return jsonify(
+        printers=printers,
+        pending_count=len(pending.list_pending(DATA_DIR)),
+        loads=loads,
+        needs_reorder=[r for r in reorder if r["state"] == "needs"],
+        in_progress=core.in_progress(store),
+        recent=history[:5],
+        forecast=stats["forecast"]["ready"][:3],
+        totals={
+            "spools": len([s for s in store.spools if not s.is_empty]),
+            "inventory_value": stats["inventory_value"],
+            "month_grams": month_g,
+            "month_label": month,
+            "prints": stats["total_prints"],
+            "success_rate": stats["success_rate"],
+            "cost_total": stats["cost_total"],
+        },
+    )
 
 
 @app.get("/api/thumbnails/<name>")

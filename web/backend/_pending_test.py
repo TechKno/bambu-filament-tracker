@@ -79,6 +79,38 @@ ck("dismiss removes load without mapping",
 r = c.post("/api/loads/SER_ext/assign", json={"spool_id": "skip"})
 ck("assign requires a spool -> 400", r.status_code in (400, 404))
 
+# --- dashboard --------------------------------------------------------------- #
+def set_status(**kw):
+    (TMP / "printer_status.json").write_text(json.dumps({SER: {
+        "name": "P1S", "serial": SER, "printing": True, "gcode_state": "RUNNING",
+        "model": "Widget", "percent": 50, "remaining_min": 30, "layer": 25, "total_layers": 50,
+        "updated_at": "2026-08-26 19:00", **kw}}))
+
+d = c.get("/api/dashboard").get_json()
+ck("dashboard has totals+recent", "totals" in d and "recent" in d and "forecast" in d, list(d))
+
+# projection: 100g job, 50% done -> needs 50g. Spool (900g left) is fine.
+set_status(weight_g=100, active_slots=[f"{SER}:ext"], filaments=[{"type": "PLA", "used_g": 100}])
+pending.set_slot(TMP, f"{SER}:ext", sp["id"])
+pr = c.get("/api/dashboard").get_json()["printers"][0]["projection"]
+ck("projection computed for active slot", len(pr) == 1 and pr[0]["needed_g"] == 50.0, pr)
+ck("projection says enough (900g left)", pr[0]["enough"] is True and pr[0]["short_by"] == 0, pr)
+
+# same job but the spool is nearly empty -> shortfall flagged
+c.patch(f"/api/spools/{sp['id']}", json={"action": "set_remaining", "remaining_g": 20, "measured": True})
+pr = c.get("/api/dashboard").get_json()["printers"][0]["projection"]
+ck("shortfall detected (needs 50, has 20)", pr[0]["enough"] is False and pr[0]["short_by"] == 30.0, pr)
+
+# unattributable multi-material -> stays quiet rather than guessing
+set_status(weight_g=100, active_slots=[f"{SER}:ext", f"{SER}:0:0"], filaments=[])
+ck("ambiguous multi-material -> no projection",
+   c.get("/api/dashboard").get_json()["printers"][0]["projection"] == [])
+
+# idle printer -> no projection
+set_status(printing=False, gcode_state="FINISH", weight_g=None, active_slots=[])
+ck("idle -> no projection", c.get("/api/dashboard").get_json()["printers"][0]["projection"] == [])
+c.patch(f"/api/spools/{sp['id']}", json={"action": "refill"})
+
 # --- printers panel ---------------------------------------------------------- #
 r = c.put("/api/printers", json={"printers": [{"name": "P1S", "ip": "192.168.1.100", "serial": SER}]})
 ck("save printers ok", r.status_code == 200, (r.status_code, r.get_json()))

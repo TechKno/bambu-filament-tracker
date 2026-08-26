@@ -134,6 +134,10 @@ class PrinterMonitor:
         return {"external": False, "ams": ams_id, "tray": tray_id,
                 "type": None, "color": None, "remain": None}
 
+    def _slot_key(self, t: dict) -> str:
+        slot = "ext" if t.get("external") else f"{t.get('ams')}:{t.get('tray')}"
+        return f"{self.serial}:{slot}"
+
     def _finish(self, status: str):
         st = self.state["print"]
         stamp = (self.start_time or self._now())
@@ -145,11 +149,9 @@ class PrinterMonitor:
                 t["remain_end"] = info["remain"]
         materials = []
         for t in self.used.values():
-            ext = t.get("external")
-            slot = "ext" if ext else f"{t.get('ams')}:{t.get('tray')}"
             materials.append({
-                "slot_key": f"{self.serial}:{slot}",
-                "external": bool(ext),
+                "slot_key": self._slot_key(t),
+                "external": bool(t.get("external")),
                 "ams": t.get("ams"), "tray": t.get("tray"),
                 "type": t.get("type"), "color": t.get("color"),
                 "remain_start": t.get("remain_start"), "remain_end": t.get("remain_end"),
@@ -194,5 +196,8 @@ class PrinterMonitor:
             "remaining_min": _int(st.get("mc_remaining_time")),
             "layer": _int(st.get("layer_num")),
             "total_layers": _int(st.get("total_layer_num")),
+            # Slots feeding the current job, so the dashboard can project whether
+            # the loaded spools hold enough filament to finish.
+            "active_slots": [self._slot_key(t) for t in self.used.values()] if self.printing else [],
             "updated_at": self._now().strftime("%Y-%m-%d %H:%M"),
         }
