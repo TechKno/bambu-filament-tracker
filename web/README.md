@@ -1,8 +1,9 @@
 # Filament Tracker — Web App
 
-A **React** single-page app on a **Flask** JSON API, plus a background **MQTT
-listener** that watches a Bambu Lab printer, all in Docker. See the top-level
-[README](../README.md) for what it does; this covers running and changing it.
+A **React** single-page app on a **Flask** JSON API, plus a background listener
+that watches a **Bambu Lab** printer over the LAN, all in Docker. See the
+top-level [README](../README.md) for what it does; this covers running and
+changing it.
 
 ## Quick start
 
@@ -23,24 +24,39 @@ Two services start:
 To change the port, edit the `ports:` line in `docker-compose.yml`
 (`"8087:8000"` → `"<your-port>:8000"`).
 
-## Connecting a printer
+## Connecting a Bambu printer
 
-Add the printer under **Printers** in the UI: name, IP, serial, and the LAN access
-code from the printer's own screen (**Settings → WLAN → Access Code**). The listener
-picks up changes within 30 seconds — no redeploy, no restart.
+Add it under **Printers** in the UI: name, IP, serial (`01P00C…`), and the LAN
+access code from the printer's own screen (**Settings → WLAN → Access Code**). The
+listener picks up changes within 30 seconds — no redeploy, no restart.
 
 Codes are written to `secrets/printer_codes.env` (one `SERIAL=code` per line) and
 never returned to the browser. If that folder is read-only the UI says so; add the
 line on the server instead.
 
-The listener needs two things from the printer, both local:
+### What it talks to
 
-- **MQTT** on `8883` (user `bblp`, password = access code) for live state and print
-  start/finish.
-- **FTPS** on `990` (same credentials) to read the sliced `.3mf` for exact
-  per-filament grams and the model preview.
+| Protocol | Port | Credentials | Used for |
+| --- | --- | --- | --- |
+| MQTT over TLS | 8883 | `bblp` / access code | `device/<serial>/report` — live state, print start/finish |
+| FTPS (implicit) | 990 | `bblp` / access code | the sliced `.3mf` — per-filament `used_g` and plate preview |
 
-No Bambu cloud account is involved. If the printer is in LAN-only mode it still works.
+Both certificates are self-signed by Bambu, so verification is disabled — fine on
+a LAN, and no cloud account is involved. **LAN-only mode works.**
+
+### Bambu specifics worth knowing
+
+- `remain` is only meaningful for genuine Bambu RFID spools; third-party spools
+  report `-1` and `tray_weight: "0"`. That is why grams come from the sliced file
+  rather than the MQTT stream.
+- Bambu bakes purge/flush into `used_g`, so deductions already include waste;
+  there is no separate purge figure to report.
+- `gcode_file` is cleared the moment a print ends, so `parser.py` captures it at
+  print *start*.
+- `tray_now` is `254`/`255` for the external spool; AMS trays are `unit*4 + tray`.
+  The UI shows AMS units and slots 1-based while the stored keys stay 0-based.
+- Tray colours arrive as `RRGGBBAA` hex; filament colour names in your inventory
+  are free text, resolved by `src/colors.js`.
 
 ## Data and secrets
 
@@ -89,7 +105,8 @@ cd listener && ../.venv/Scripts/python _parser_test.py   # MQTT parser
 cd listener && ../.venv/Scripts/python _ftp_test.py      # 3MF parsing
 ```
 
-The parser and 3MF tests run against synthetic payloads, so no printer is needed.
+The parser and 3MF tests run against synthetic Bambu payloads, so no printer is
+needed to run the suite.
 
 ## Layout
 
@@ -101,8 +118,8 @@ web/
     pending.py       # confirm-first capture store
   listener/
     listener.py      # MQTT client, per-printer
-    parser.py        # pure Bambu report parser (unit-tested)
-    bambu_ftp.py     # implicit-FTPS 3MF fetch: grams + preview
+    parser.py        # pure Bambu report parser (unit-tested, no I/O)
+    bambu_ftp.py     # implicit-FTPS 3MF fetch: per-filament grams + preview
   frontend/
     src/pages/       # one file per screen
     src/components/  # SpoolIcon, Modal, Login
@@ -125,5 +142,6 @@ block as each screen is converted.
 
 - Timestamps are local (`TZ=Europe/London` on both containers; handles GMT/BST).
 - One gunicorn worker keeps JSON writes serialised — correct for a single-user tool.
-- Set `MQTT_RECORD_SECONDS` on the listener to snapshot full printer reports into
-  `data/recordings/` for offline analysis (0 disables).
+- Set `MQTT_RECORD_SECONDS` on the listener to snapshot full Bambu reports into
+  `data/recordings/` for offline analysis (0 disables). Useful when a new firmware
+  changes a field name.
