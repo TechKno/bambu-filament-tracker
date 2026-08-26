@@ -71,7 +71,11 @@ def fetch_weights(ip: str, code: str, gcode_file: str, timeout: float = 12.0):
         ftp.cwd(d or "/")
         buf = io.BytesIO()
         ftp.retrbinary("RETR " + name, buf.write)
-        return parse_3mf(buf.getvalue())
+        raw = buf.getvalue()
+        info = parse_3mf(raw)
+        if info is not None:
+            info["thumbnail"] = extract_thumbnail(raw)
+        return info
     except Exception:
         return None
     finally:
@@ -80,6 +84,26 @@ def fetch_weights(ip: str, code: str, gcode_file: str, timeout: float = 12.0):
                 ftp.quit()
             except Exception:
                 pass
+
+
+def extract_thumbnail(data: bytes):
+    """Pure: return the small plate preview PNG from 3MF bytes (or None).
+    Prefers the *_small.png variants to keep the stored image tiny."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except Exception:
+        return None
+    names = z.namelist()
+    for pref in ("plate_1_small.png", "plate_2_small.png", "plate_1.png", "plate_2.png"):
+        for n in names:
+            if n.endswith(pref):
+                try:
+                    raw = z.read(n)
+                    if raw[:8] == b"\x89PNG\r\n\x1a\n" and len(raw) <= 400_000:
+                        return raw
+                except Exception:
+                    pass
+    return None
 
 
 def parse_3mf(data: bytes):

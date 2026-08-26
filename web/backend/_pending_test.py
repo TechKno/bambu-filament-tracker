@@ -79,6 +79,21 @@ ck("dismiss removes load without mapping",
 r = c.post("/api/loads/SER_ext/assign", json={"spool_id": "skip"})
 ck("assign requires a spool -> 400", r.status_code in (400, 404))
 
+# --- printers panel ---------------------------------------------------------- #
+r = c.put("/api/printers", json={"printers": [{"name": "P1S", "ip": "192.168.1.100", "serial": SER}]})
+ck("save printers ok", r.status_code == 200, (r.status_code, r.get_json()))
+pl = c.get("/api/printers").get_json()["printers"]
+ck("printer listed", len(pl) == 1 and pl[0]["serial"] == SER and pl[0]["has_code"] is False, pl)
+ck("bad printer rejected", c.put("/api/printers", json={"printers": [{"name": "x", "ip": "", "serial": ""}]}).status_code == 400)
+ck("bad serial rejected", c.put("/api/printers", json={"printers": [{"ip": "1.2.3.4", "serial": "../etc"}]}).status_code == 400)
+
+# --- thumbnails -------------------------------------------------------------- #
+td = TMP / "thumbnails"; td.mkdir(exist_ok=True)
+(td / "shot.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+ck("thumbnail served", c.get("/api/thumbnails/shot.png").status_code == 200)
+ck("missing thumbnail 404", c.get("/api/thumbnails/nope.png").status_code == 404)
+ck("non-png thumbnail rejected", c.get("/api/thumbnails/evil.txt").status_code == 404)
+
 # path traversal guard (test the id sanitiser directly)
 victim = TMP / "victim.json"; victim.write_text("{}")
 ck("traversal id rejected by guard",

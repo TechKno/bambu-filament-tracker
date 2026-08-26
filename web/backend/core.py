@@ -119,11 +119,13 @@ class PrintJob:
     date: str
     status: str   # "completed" | "failed" | "in_progress"
     usage: list = field(default_factory=list)
+    thumbnail: str = ""   # filename in <data>/thumbnails/, if captured
 
     def to_persist(self) -> dict:
         return {
             "id": self.id, "name": self.name, "date": self.date,
             "status": self.status, "usage": [u.to_dict() for u in self.usage],
+            "thumbnail": self.thumbnail,
         }
 
 
@@ -197,7 +199,8 @@ class Store:
                        for s in raw.get("spools", [])]
         self.prints = [
             PrintJob(id=p["id"], name=p["name"], date=p["date"], status=p["status"],
-                     usage=[UsageLine(**u) for u in p.get("usage", [])])
+                     usage=[UsageLine(**u) for u in p.get("usage", [])],
+                     thumbnail=p.get("thumbnail", ""))
             for p in raw.get("prints", [])
         ]
 
@@ -376,7 +379,7 @@ class Store:
             agg[sid] = agg.get(sid, 0.0) + float(u["grams"])
         return [UsageLine(spool_id=sid, grams=g2(g)) for sid, g in agg.items()]
 
-    def log_print(self, name: str, usage: list, status: str) -> PrintJob:
+    def log_print(self, name: str, usage: list, status: str, thumbnail: str = "") -> PrintJob:
         if status not in ("completed", "failed", "in_progress"):
             raise FilamentError(f"Invalid status '{status}'.")
         if not name.strip():
@@ -386,8 +389,8 @@ class Store:
             raise FilamentError("A print needs at least one material.")
         if _is_deducted(status):
             self._deduct(lines)
-        job = PrintJob(id=self.next_print_id, name=name.strip(),
-                       date=now_str(), status=status, usage=lines)
+        job = PrintJob(id=self.next_print_id, name=name.strip(), date=now_str(),
+                       status=status, usage=lines, thumbnail=thumbnail or "")
         self.prints.append(job)
         self.next_print_id += 1
         self.save()
@@ -556,6 +559,7 @@ def history_view(store: Store) -> list:
             "id": p.id, "name": p.name, "date": p.date, "status": p.status,
             "total_g": round(sum(u.grams for u in p.usage), 2),
             "cost": round(cost, 2), "cost_status": cost_status,
+            "thumbnail": p.thumbnail or None,
             "usage": _usage_with_labels(store, p),
         })
     return out

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 from functools import wraps
 from pathlib import Path
@@ -352,6 +353,111 @@ def dismiss_load(lid):
     return jsonify(ok=True)
 
 
+@app.get("/api/thumbnails/<name>")
+@require_auth
+def thumbnail(name):
+    # send_from_directory rejects traversal, but keep the name strictly simple.
+    if not re.fullmatch(r"[A-Za-z0-9._-]+\.png", name or ""):
+        return jsonify(error="Not found."), 404
+    d = DATA_DIR / "thumbnails"
+    if not (d / name).is_file():
+        return jsonify(error="Not found."), 404
+    return send_from_directory(d, name, max_age=86400)
+
+
+# --------------------------------------------------------------------------- #
+# Printers panel
+# --------------------------------------------------------------------------- #
+
+PRINTERS_FILE = DATA_DIR / "printers.json"
+CODES_FILE = Path(os.environ.get("PRINTER_CODES_FILE", "/secrets/printer_codes.env"))
+
+
+def _read_printers() -> list:
+    try:
+        d = json.loads(PRINTERS_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _read_codes() -> dict:
+    codes = {}
+    try:
+        for line in CODES_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                codes[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return codes
+
+
+def _write_codes(codes: dict) -> bool:
+    """Best-effort: the secrets mount may be read-only, in which case the user
+    keeps managing the file over SSH and we say so in the UI."""
+    try:
+        CODES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        body_ = "".join(f"{k}={v}\n" for k, v in sorted(codes.items()))
+        CODES_FILE.write_text(body_, encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
+@app.get("/api/printers")
+@require_auth
+def get_printers():
+    codes = _read_codes()
+    status = pending.read_status(DATA_DIR)
+    out = []
+    for p in _read_printers():
+        s = status.get(p.get("serial"), {})
+        out.append({**p,
+                    "has_code": bool(codes.get(p.get("serial"))),
+                    "connected": bool(s),
+                    "gcode_state": s.get("gcode_state"),
+                    "updated_at": s.get("updated_at")})
+    return jsonify(printers=out, codes_writable=os.access(CODES_FILE.parent, os.W_OK))
+
+
+@app.put("/api/printers")
+@require_auth
+def put_printers():
+    d = body()
+    items = d.get("printers")
+    if not isinstance(items, list):
+        return jsonify(error="Expected a list of printers."), 400
+    clean = []
+    for p in items:
+        serial = str(p.get("serial", "")).strip()
+        ip = str(p.get("ip", "")).strip()
+        name = str(p.get("name", "")).strip() or serial
+        if not serial or not ip:
+            return jsonify(error="Each printer needs a serial and an IP."), 400
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", serial):
+            return jsonify(error=f"Invalid serial '{serial}'."), 400
+        if not re.fullmatch(r"[A-Za-z0-9.:_-]+", ip):
+            return jsonify(error=f"Invalid address '{ip}'."), 400
+        clean.append({"name": name, "ip": ip, "serial": serial})
+    try:
+        PRINTERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PRINTERS_FILE.write_text(json.dumps(clean, indent=2), encoding="utf-8")
+    except OSError as e:
+        return jsonify(error=f"Could not save printers: {e}"), 500
+
+    # Optional access codes, written to the secrets file (never returned).
+    new_codes = {str(k): str(v) for k, v in (d.get("codes") or {}).items() if v}
+    if new_codes:
+        codes = _read_codes()
+        codes.update(new_codes)
+        if not _write_codes(codes):
+            return jsonify(printers=clean, code_error="Access code not saved: the secrets "
+                           "folder is read-only. Add it on the server instead."), 200
+    return jsonify(printers=clean)
+
+
 @app.post("/api/pending/<pid>/confirm")
 @require_auth
 def confirm_pending(pid):
@@ -367,7 +473,7 @@ def confirm_pending(pid):
         return jsonify(error="Assign at least one material to a spool."), 400
     name = (d.get("name") or cap.get("model") or "Print").strip()
     status = d.get("status") or cap.get("status") or "completed"
-    job = store.log_print(name, usage, status)
+    job = store.log_print(name, usage, status, thumbnail=cap.get("thumbnail"))
     for u in lines:                       # remember slot -> spool for next time
         if u.get("slot_key") and u.get("spool_id") not in (None, "", "skip"):
             pending.set_slot(DATA_DIR, u["slot_key"], int(u["spool_id"]))

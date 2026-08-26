@@ -8,6 +8,7 @@ import History from './pages/History.jsx'
 import Stats from './pages/Stats.jsx'
 import Reorder from './pages/Reorder.jsx'
 import Settings from './pages/Settings.jsx'
+import Printers from './pages/Printers.jsx'
 import ResolveModal from './pages/ResolveModal.jsx'
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   ['history', 'History'],
   ['stats', 'Stats'],
   ['reorder', 'Reorder'],
+  ['printers', 'Printers'],
   ['settings', 'Settings'],
 ]
 
@@ -114,6 +116,7 @@ export default function App() {
       {view === 'history' && <History reload={loadInv} />}
       {view === 'stats' && <Stats />}
       {view === 'reorder' && <Reorder reload={loadInv} />}
+      {view === 'printers' && <Printers />}
       {view === 'settings' && <Settings auth={auth} refreshAuth={checkAuth} />}
 
       {resolveTarget && (

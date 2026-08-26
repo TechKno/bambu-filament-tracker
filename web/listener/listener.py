@@ -33,6 +33,7 @@ PRINTERS_FILE = Path(os.environ.get("PRINTERS_FILE", str(DATA_DIR / "printers.js
 PENDING_DIR = DATA_DIR / "pending"
 STATUS_FILE = DATA_DIR / "printer_status.json"
 LOADS_DIR = DATA_DIR / "loads"                     # filament-load prompts
+THUMB_DIR = DATA_DIR / "thumbnails"                # plate previews from sliced 3MFs
 TRAY_STATE_FILE = DATA_DIR / "tray_state.json"     # last-seen filament per slot
 SLOT_MAP_FILE = DATA_DIR / "slot_map.json"         # slot_key -> spool_id (written by the app)
 RESCAN_SECONDS = 30
@@ -198,6 +199,14 @@ class PrinterClient:
             return
         cap["weight_g"] = info.get("weight_g")
         cap["print_time_s"] = info.get("time_s")
+        thumb = info.get("thumbnail")
+        if thumb:
+            try:
+                THUMB_DIR.mkdir(parents=True, exist_ok=True)
+                (THUMB_DIR / f"{cap['id']}.png").write_bytes(thumb)
+                cap["thumbnail"] = f"{cap['id']}.png"
+            except Exception:
+                pass
         fils = list(info.get("filaments") or [])
         mats = cap.get("materials", [])
 

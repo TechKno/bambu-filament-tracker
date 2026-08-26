@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, grams as fmtGrams } from '../api.js'
+import { api, grams as fmtGrams, thumbUrl } from '../api.js'
 import { rankSpools, bestGuess } from '../colors.js'
 
 // Bambu reports tray colour as RRGGBBAA hex; show the first 6 as a swatch.
@@ -128,6 +128,7 @@ function PendingCard({ cap, spools, reload }) {
   return (
     <div className="panel">
       <div className="row" style={{ marginBottom: 10 }}>
+        {cap.thumbnail && <img className="thumb thumb-lg" src={thumbUrl(cap.thumbnail)} alt="" />}
         <span className={`tag ${cls}`}>{label}</span>
         <button className="linklike" title="change outcome"
           onClick={() => setStatus(status === 'completed' ? 'failed' : 'completed')}>change</button>

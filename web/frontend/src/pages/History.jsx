@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, money, grams } from '../api.js'
+import { api, money, grams, thumbUrl } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 const TAG = { completed: ['ok', 'OK'], failed: ['failed', 'FAILED'], in_progress: ['wip', 'WIP'] }
@@ -43,9 +43,16 @@ export default function History({ reload }) {
                   <td className="muted">{p.date}</td>
                   <td><span className={`tag ${cls}`}>{label}</span></td>
                   <td>
-                    {p.name}
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {p.usage.map((u) => `${u.label}: ${grams(u.grams)}g`).join(' · ')}
+                    <div className="hist-name">
+                      {p.thumbnail
+                        ? <img className="thumb" src={thumbUrl(p.thumbnail)} alt="" loading="lazy" />
+                        : <span className="thumb thumb-empty" />}
+                      <div style={{ minWidth: 0 }}>
+                        {p.name}
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {p.usage.map((u) => `${u.label}: ${grams(u.grams)}g`).join(' · ')}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td className="num">{grams(p.total_g)}g{p.status === 'in_progress' ? ' planned' : ''}</td>
