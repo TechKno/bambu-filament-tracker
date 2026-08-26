@@ -732,8 +732,8 @@ def forecast_view(store: Store, today: Optional[date] = None) -> dict:
             if s is None:
                 continue
             k = type_key(s)
-            e = type_data.setdefault(k, {"grams": 0.0, "prints": set(),
-                                         "earliest": None, "label": s.label})
+            e = type_data.setdefault(k, {"grams": 0.0, "prints": set(), "earliest": None,
+                                         "label": s.label, "color": s.color})
             e["grams"] += u.grams
             e["prints"].add(p.id)
             if d and (e["earliest"] is None or d < e["earliest"]):
@@ -759,6 +759,7 @@ def forecast_view(store: Store, today: Optional[date] = None) -> dict:
                 days_left = left / rate_day
                 forecasts.append({
                     "label": e["label"],
+                    "color": e["color"],
                     "rate_g_per_week": round(rate_day * 7),
                     "remaining_g": round(left, 2),
                     "estimated": estimated.get(k, False),

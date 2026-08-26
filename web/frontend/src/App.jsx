@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { api, thumbUrl } from './api.js'
+import { api } from './api.js'
 import Login from './components/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Inventory from './pages/Inventory.jsx'
@@ -12,17 +12,22 @@ import Settings from './pages/Settings.jsx'
 import Printers from './pages/Printers.jsx'
 import ResolveModal from './pages/ResolveModal.jsx'
 
-const TABS = [
-  ['dashboard', 'Dashboard'],
-  ['inventory', 'Inventory'],
-  ['pending', 'Pending'],
-  ['log', 'Log print'],
-  ['history', 'History'],
-  ['stats', 'Stats'],
-  ['reorder', 'Reorder'],
-  ['printers', 'Printers'],
-  ['settings', 'Settings'],
-]
+// Primary group appears in the mobile tab bar; the rest live behind "More".
+const PRIMARY = [['dashboard', 'Dashboard'], ['pending', 'Pending'], ['inventory', 'Inventory']]
+const SECONDARY = [['history', 'History'], ['stats', 'Stats'], ['log', 'Log print']]
+const TERTIARY = [['reorder', 'Reorder'], ['printers', 'Printers'], ['settings', 'Settings']]
+const TITLES = Object.fromEntries([...PRIMARY, ...SECONDARY, ...TERTIARY])
+
+function useTheme() {
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('ft-theme') || 'dark' } catch { return 'dark' }
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try { localStorage.setItem('ft-theme', theme) } catch { /* private mode */ }
+  }, [theme])
+  return [theme, setTheme]
+}
 
 export default function App() {
   const [auth, setAuth] = useState({ loading: true, enabled: false, authed: false })
@@ -30,8 +35,10 @@ export default function App() {
   const [inv, setInv] = useState(null)
   const [pend, setPend] = useState({ pending: [], status: {} })
   const [dash, setDash] = useState(null)
-  const [month, setMonth] = useState(null)   // null = current month
+  const [month, setMonth] = useState(null)     // null = current month
   const [resolveTarget, setResolveTarget] = useState(null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [theme, setTheme] = useTheme()
 
   const loadInv = useCallback(async () => {
     try { setInv(await api.inventory()) }
@@ -57,11 +64,8 @@ export default function App() {
 
   useEffect(() => { checkAuth() }, [checkAuth])
   useEffect(() => { if (auth.authed) { loadInv(); loadPending() } }, [auth.authed, loadInv, loadPending])
-  useEffect(() => { if (auth.authed) loadDash() }, [auth.authed, loadDash])   // month arrows refetch only this
+  useEffect(() => { if (auth.authed) loadDash() }, [auth.authed, loadDash])
 
-  // Live-refresh printer status + pending captures while signed in. Poll every
-  // 5s when the tab is visible, and refetch immediately on focus/visibility —
-  // browsers throttle timers in background tabs, so focus is the reliable path.
   // The interval reads the latest loaders through a ref, so it is created once
   // per session instead of being torn down whenever a dependency changes.
   const tickRef = useRef(() => {})
@@ -79,7 +83,7 @@ export default function App() {
     }
   }, [auth.authed])
 
-  if (auth.loading) return <div className="app"><p className="muted" style={{ marginTop: 40 }}>Loading…</p></div>
+  if (auth.loading) return <div className="main"><p className="muted">Loading…</p></div>
   if (auth.enabled && !auth.authed) {
     return <Login onSuccess={() => setAuth((a) => ({ ...a, authed: true }))} />
   }
@@ -89,93 +93,84 @@ export default function App() {
   const nLoads = pend.loads?.length || 0
   const pendCount = nPrints + nLoads
   const reloadAll = () => { loadInv(); loadPending(); loadDash() }
+  const go = (v) => { setView(v); setMoreOpen(false) }
 
   async function logout() {
     await api.logout()
     setAuth((a) => ({ ...a, authed: !a.enabled }))
   }
 
-  return (
-    <div className="app">
-      <header className="top">
-        <h1><span>◆</span> Filament Tracker</h1>
-        <nav>
-          {TABS.map(([id, label]) => (
-            <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>
-              {label}
-              {id === 'pending' && pendCount > 0 && <span className="badge">{pendCount}</span>}
-            </button>
-          ))}
-          {auth.enabled && auth.authed && <button onClick={logout} title="Log out">Log out</button>}
-        </nav>
-      </header>
+  const NavBtn = ([id, label]) => (
+    <button key={id} className={`nav-item${view === id ? ' active' : ''}`} onClick={() => go(id)}>
+      {label}
+      {id === 'pending' && pendCount > 0 && <span className="badge">{pendCount}</span>}
+    </button>
+  )
 
-      {view !== 'dashboard' && <PrinterStatus status={pend.status} />}
-      {view !== 'dashboard' && pendCount > 0 && (
-        <div className="banner" style={{ background: 'var(--panel-2)', border: '1px solid var(--border)' }}>
-          <div className="line">
-            <b>
-              {[nLoads ? `${nLoads} filament load${nLoads > 1 ? 's' : ''}` : '',
-                nPrints ? `${nPrints} print${nPrints > 1 ? 's' : ''}` : '']
-                .filter(Boolean).join(' + ')} to confirm
-            </b>
-            <span className="spacer" />
-            <button className="btn small" onClick={() => setView('pending')}>Review</button>
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-dot" /> Filament Tracker</div>
+        {PRIMARY.map(NavBtn)}
+        {SECONDARY.map(NavBtn)}
+        <div className="nav-sep" />
+        {TERTIARY.map(NavBtn)}
+        <div className="nav-sep" />
+        <button className="nav-item" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+          {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+        </button>
+        {auth.enabled && auth.authed && <button className="nav-item" onClick={logout}>Log out</button>}
+      </aside>
+
+      <main className="main">
+        <div className="page-head">
+          <h1 className="page-title">{TITLES[view] || 'Filament Tracker'}</h1>
+        </div>
+
+        {view === 'dashboard' && <Dashboard data={dash} go={go} setMonth={setMonth} />}
+        {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
+        {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
+        {view === 'log' && <LogPrint spools={spools} reload={reloadAll} onDone={() => go('dashboard')} />}
+        {view === 'history' && <History reload={reloadAll} />}
+        {view === 'stats' && <Stats />}
+        {view === 'reorder' && <Reorder reload={reloadAll} />}
+        {view === 'printers' && <Printers />}
+        {view === 'settings' && <Settings auth={auth} refreshAuth={checkAuth} theme={theme} setTheme={setTheme} />}
+
+        {inv && view !== 'dashboard' && (
+          <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => go('reorder')} />
+        )}
+      </main>
+
+      <nav className="tabbar">
+        {PRIMARY.map(([id, label]) => (
+          <button key={id} className={view === id ? 'active' : ''} onClick={() => go(id)}>
+            {label}
+            {id === 'pending' && pendCount > 0 && <span className="badge">{pendCount}</span>}
+          </button>
+        ))}
+        <button className={moreOpen ? 'active' : ''} onClick={() => setMoreOpen((o) => !o)}>More</button>
+      </nav>
+
+      {moreOpen && (
+        <div className="sheet-backdrop" onMouseDown={() => setMoreOpen(false)}>
+          <div className="sheet" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="sheet-grab" />
+            {[...SECONDARY, ...TERTIARY].map(([id, label]) => (
+              <button key={id} className="sheet-row" onClick={() => go(id)}>{label}</button>
+            ))}
+            <button className="sheet-row" onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setMoreOpen(false) }}>
+              {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+            </button>
+            {auth.enabled && auth.authed && <button className="sheet-row" onClick={logout}>Log out</button>}
           </div>
         </div>
       )}
-      {view !== 'dashboard' && inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
-
-      {view === 'dashboard' && <Dashboard data={dash} go={setView} setMonth={setMonth} />}
-      {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
-      {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
-      {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}
-      {view === 'history' && <History reload={loadInv} />}
-      {view === 'stats' && <Stats />}
-      {view === 'reorder' && <Reorder reload={loadInv} />}
-      {view === 'printers' && <Printers />}
-      {view === 'settings' && <Settings auth={auth} refreshAuth={checkAuth} />}
 
       {resolveTarget && (
         <ResolveModal print={resolveTarget} onClose={() => setResolveTarget(null)}
-          onDone={() => { setResolveTarget(null); loadInv() }} />
+          onDone={() => { setResolveTarget(null); reloadAll() }} />
       )}
-    </div>
-  )
-}
-
-function PrinterStatus({ status }) {
-  const printers = Object.values(status || {})
-  if (!printers.length) return null
-  return (
-    <div className="banner" style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}>
-      {printers.map((p) => {
-        const paused = p.gcode_state === 'PAUSE'
-        const dot = paused ? 'var(--yellow)' : p.printing ? 'var(--green)' : 'var(--muted)'
-        return (
-          <div key={p.serial} className="status-block">
-            {p.printing && p.thumbnail && (
-              <img className="thumb thumb-live" src={thumbUrl(p.thumbnail)} alt="" />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="status-line">
-              <span className="dot" style={{ background: dot }} />
-              <b>{p.name}</b>
-              {p.printing
-                ? <span className="muted">{paused ? 'paused' : 'printing'} {p.model || ''} — {p.percent ?? 0}%{p.remaining_min ? ` · ${p.remaining_min} min left` : ''}{p.layer != null && p.total_layers ? ` · layer ${p.layer}/${p.total_layers}` : ''}</span>
-                : <span className="muted">idle{p.gcode_state ? ` (${p.gcode_state.toLowerCase()})` : ''}</span>}
-              <span className="spacer" />
-              <span className="muted" style={{ fontSize: 12 }}>updated {p.updated_at?.slice(11)}</span>
-            </div>
-            {p.printing && (
-              <div className={`bar${paused ? ' mid' : ''}`} style={{ maxWidth: 'none', marginTop: 6 }}>
-                <div style={{ width: `${Math.min(100, p.percent ?? 0)}%` }} />
-              </div>
-            )}
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -187,25 +182,33 @@ function Alerts({ inv, onResolve, onGoReorder }) {
   return (
     <>
       {wip.length > 0 && (
-        <div className="banner red">
-          <b>{wip.length} print{wip.length > 1 ? 's' : ''} in progress — don’t forget to finish {wip.length > 1 ? 'them' : 'it'}</b>
+        <div className="card">
+          <h2 className="sec-head">In progress</h2>
           {wip.map((p) => (
-            <div className="line" key={p.id}>
-              <span>#{p.id} {p.name} <span className="muted">(started {p.date})</span></span>
+            <div className="arow" key={p.id} onClick={() => onResolve(p)}>
+              <div style={{ minWidth: 0 }}>
+                <div className="arow-t">#{p.id} {p.name}</div>
+                <div className="arow-s">Started {p.date}</div>
+              </div>
               <span className="spacer" />
-              <button className="btn small" onClick={() => onResolve(p)}>Resolve</button>
+              <button className="btn small">Resolve</button>
             </div>
           ))}
         </div>
       )}
       {low.length > 0 && (
-        <div className="banner yellow">
-          <b>{low.length} filament{low.length > 1 ? 's' : ''} running low</b>
+        <div className="card">
+          <h2 className="sec-head">Running low</h2>
           {low.map((t) => (
-            <div className="line" key={t.type_id}>
-              <span>{t.label} — {t.state === 'needs' && t.current_pct === 0 ? 'OUT' : `${t.current_pct}%`}</span>
+            <div className="arow" key={t.type_id} onClick={onGoReorder}>
+              <div style={{ minWidth: 0 }}>
+                <div className="arow-t">{t.label}</div>
+                <div className="arow-s" style={{ color: 'var(--warn)' }}>
+                  {t.current_pct === 0 ? 'Out of stock' : `${t.current_pct}% left`}
+                </div>
+              </div>
               <span className="spacer" />
-              <button className="btn small ghost" onClick={onGoReorder}>Reorder</button>
+              <button className="btn ghost small">Reorder</button>
             </div>
           ))}
         </div>
