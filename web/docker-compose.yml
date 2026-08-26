@@ -1,8 +1,8 @@
 services:
-  filament-tracker:
+  app:
     build: .
-    image: filament-tracker
-    container_name: filament-tracker
+    image: bambu-filament-tracker
+    container_name: bambu-filament-tracker
     ports:
       - "8087:8000"        # browse to http://localhost:8087
     environment:
@@ -13,12 +13,12 @@ services:
       - ./secrets:/secrets # printer access codes (writable so the Printers panel can save them)
     restart: unless-stopped
 
-  mqtt-listener:
+  listener:
     build: ./listener
-    image: filament-mqtt-listener
-    container_name: filament-mqtt
+    image: bambu-filament-listener
+    container_name: bambu-filament-listener
     depends_on:
-      - filament-tracker
+      - app
     environment:
       - FILAMENT_DATA_DIR=/data
       - TZ=Europe/London        # keep capture timestamps in local time

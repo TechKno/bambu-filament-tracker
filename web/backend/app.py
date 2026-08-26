@@ -1,6 +1,6 @@
 """
-Filament Tracker - web API (Flask)
-==================================
+Bambu Filament Tracker - web API (Flask)
+========================================
 
 Thin JSON API over core.Store. Serves the built React SPA in production.
 Auth is optional and configurable at runtime from the Settings page:

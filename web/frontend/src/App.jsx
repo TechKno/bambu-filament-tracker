@@ -129,7 +129,7 @@ export default function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-dot" /> Filament Tracker</div>
+        <div className="brand"><span className="brand-dot" /> Bambu Filament Tracker</div>
         {PRIMARY.map(NavBtn)}
         {SECONDARY.map(NavBtn)}
         <div className="nav-sep" />

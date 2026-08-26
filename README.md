@@ -1,4 +1,4 @@
-# Filament Tracker
+# Bambu Filament Tracker
 
 Self-hosted filament tracking for **Bambu Lab** printers that logs your prints for you.
 
@@ -9,8 +9,8 @@ finishes it already knows the model, the outcome, which AMS slot fed it, and the
 Built and running against a **P1S**. Should work on any Bambu machine that exposes
 LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see [Printer support](#printer-support).
 
-> Single-user, self-hosted, LAN-only by design. No accounts, no telemetry, nothing
-> leaves your network.
+> Self-hosted and LAN-only by design. No cloud accounts, no telemetry, nothing leaves
+> your network — and it [scales to a farm](#scales-to-a-print-farm) of printers.
 
 <sub>All screenshots below use demo data — the filaments, print names and model
 previews are fabricated.</sub>
@@ -107,16 +107,39 @@ targets are sized for mucky fingers. Dark theme by default, light theme a tap aw
 
 ---
 
+## Scales to a print farm
+
+Nothing about the design assumes a single machine. Add as many printers as you like
+under **Printers** and the listener opens an independent MQTT connection to each,
+picking up additions and removals within 30 seconds — no restart, no redeploy.
+
+- **The dashboard shows every printer**, with whatever is actually printing sorted to
+  the top, each with its own progress, ETA and will-it-finish verdict.
+- **Slot mappings are per printer.** "AMS 1 · slot 3" on one machine is a different
+  thing from the same slot on another, so a shared spool library stays unambiguous.
+- **One filament inventory across the farm** — which is usually what you want, since
+  the spools move between machines.
+- **Every capture carries its printer**, so history tells you which machine ran what.
+
+Sensible limits to know before pointing it at a large farm: state lives in a single
+JSON file served by one gunicorn worker, which is deliberate — it keeps writes
+serialised and the whole thing dependency-free. That comfortably handles a handful of
+machines and a single operator; it is not built for hundreds of printers or for several
+people writing at once. It has been run in anger against one P1S, so treat multi-printer
+as designed-for and lightly-travelled rather than battle-tested.
+
+---
+
 ## Quick start
 
 ```bash
-git clone https://github.com/TechKno/filament-tracker.git
-cd filament-tracker/web
+git clone https://github.com/TechKno/bambu-filament-tracker.git
+cd bambu-filament-tracker/web
 docker compose up -d --build
 ```
 
 Open **http://localhost:8087**. Two containers start: the web app, and the listener
-that watches your printer.
+that watches your printers.
 
 Then add your printer under **Printers**:
 

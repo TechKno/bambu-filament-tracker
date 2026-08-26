@@ -1,6 +1,6 @@
 """
-Filament Tracker - domain core
-==============================
+Bambu Filament Tracker - domain core
+====================================
 
 Pure data model + business logic for the filament tracker. No I/O beyond the
 JSON store: every operation either mutates the store (and persists) or returns
