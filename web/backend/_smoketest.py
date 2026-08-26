@@ -6,10 +6,20 @@ import tempfile
 from pathlib import Path
 
 TMP = Path(tempfile.mkdtemp())
-# Seed with a copy of the real data if present, else start empty.
-real = Path(__file__).resolve().parents[2] / "filament_data.json"
-if real.exists():
-    shutil.copy2(real, TMP / "filament_data.json")
+# Self-seeding: the suite owns its fixture rather than depending on any file
+# outside the repo, so it behaves the same on a clean checkout.
+(TMP / "filament_data.json").write_text(json.dumps({
+    "next_spool_id": 3, "next_print_id": 1,
+    "spools": [
+        {"id": 1, "brand": "Elegoo", "material": "PLA PLUS HF", "color": "Black",
+         "total_g": 1000.0, "remaining_g": 700.0, "estimated": False,
+         "reorder_status": "", "price": 18.0, "notes": "", "added": "2026-01-01"},
+        {"id": 2, "brand": "Deeplee", "material": "PETG HF", "color": "White",
+         "total_g": 1000.0, "remaining_g": 950.0, "estimated": True,
+         "reorder_status": "", "price": 0.0, "notes": "", "added": "2026-01-01"},
+    ],
+    "prints": [],
+}))
 os.environ["FILAMENT_DATA_DIR"] = str(TMP)
 
 import app as appmod  # noqa: E402

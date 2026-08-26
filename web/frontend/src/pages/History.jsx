@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, money, grams, thumbUrl } from '../api.js'
+import { api, money, grams, thumbUrl, shortDate } from '../api.js'
 import Modal from '../components/Modal.jsx'
 
 const TAG = { completed: ['ok', 'OK'], failed: ['failed', 'FAILED'], in_progress: ['wip', 'WIP'] }
@@ -39,7 +39,7 @@ export default function History({ reload }) {
               return (
                 <tr key={p.id}>
                   <td>{p.id}</td>
-                  <td className="muted">{p.date}</td>
+                  <td className="muted mono">{shortDate(p.date)}</td>
                   <td><span className={`tag ${cls}`}>{label}</span></td>
                   <td>
                     <div className="hist-name">

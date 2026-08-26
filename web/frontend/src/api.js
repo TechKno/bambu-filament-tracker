@@ -2,6 +2,15 @@
 export const CURRENCY = '£'
 // Format a money value; null/undefined -> em dash (unknown/unpriced).
 export const money = (n) => (n == null ? '—' : `${CURRENCY}${Number(n).toFixed(2)}`)
+// UK short date. The API sends "YYYY-MM-DD HH:MM"; show "26/08/2026 20:35".
+// Pass {time:false} for the date alone.
+export const shortDate = (s, { time = true } = {}) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/.exec(s || '')
+  if (!m) return s || ''
+  const d = `${m[3]}/${m[2]}/${m[1]}`
+  return time && m[4] ? `${d} ${m[4]}` : d
+}
+
 // Format a gram value to 0.01 g, trimming trailing zeros (700, 12.5, 12.34).
 export const grams = (g) => (g == null ? '' : Number(g).toLocaleString(undefined, { maximumFractionDigits: 2 }))
 

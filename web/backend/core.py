@@ -2,13 +2,9 @@
 Filament Tracker - domain core
 ==============================
 
-Pure data model + business logic for the filament tracker, refactored out of
-the original CLI so it can back a web API. No printing, no input(): every
-operation either mutates the store (and persists) or returns plain data
-structures ready to be turned into JSON.
-
-The on-disk JSON format is unchanged, so existing `filament_data.json` files
-made by the CLI load as-is.
+Pure data model + business logic for the filament tracker. No I/O beyond the
+JSON store: every operation either mutates the store (and persists) or returns
+plain data structures ready to be turned into JSON.
 """
 
 from __future__ import annotations

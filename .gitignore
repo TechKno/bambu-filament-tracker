@@ -8,10 +8,7 @@ web/.venv/
 node_modules/
 web/frontend/dist/
 
-# ---- Live data & backups (kept in OneDrive + on the server, not in source) ----
-filament_data.json
-filament_data.backup.json
-backups/
+# ---- Live data & backups (on the server, not in source) ----
 web/data/*
 !web/data/.gitkeep
 
