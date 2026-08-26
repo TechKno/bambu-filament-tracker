@@ -137,6 +137,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
          border: 1px solid var(--border); flex: 0 0 auto; }
 .thumb-empty { background: var(--panel-2); }
 .thumb-lg { width: 56px; height: 56px; }
+.thumb-live { width: 64px; height: 64px; }
+.status-block { display: flex; gap: 12px; align-items: center; padding: 2px 0; }
 .hist-name { display: flex; gap: 10px; align-items: center; }
 
 /* printers panel */

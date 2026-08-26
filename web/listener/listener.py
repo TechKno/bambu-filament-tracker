@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import ssl
 import time
 from pathlib import Path
@@ -148,6 +149,7 @@ class PrinterClient:
         self.last_snap = 0.0
         self.last_gs_rec = "__start__"
         self._tray_seen = {}
+        self._live_job = None
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -173,6 +175,7 @@ class PrinterClient:
             log(f"{self.name}: parse error {e!r}")
             return
         if status:
+            status["thumbnail"] = self._live_thumb(status)
             write_status(self.serial, status)
             self._maybe_record(status)
             try:
@@ -182,6 +185,35 @@ class PrinterClient:
         if capture:
             self._enrich_weights(capture)
             write_capture(capture)
+
+    def _live_thumb(self, status):
+        """Preview for the job currently printing. Fetched once per job (the FTP
+        pull is slow-ish), cached under a name derived from the gcode file."""
+        if not status.get("printing"):
+            self._live_job = None
+            return None
+        gf = status.get("gcode_file") or status.get("model") or ""
+        if not gf:
+            return None
+        if self._live_job and self._live_job[0] == gf:
+            return self._live_job[1]            # already resolved (or known-missing)
+        name = "live-" + re.sub(r"[^A-Za-z0-9._-]", "_", gf)[:80] + ".png"
+        out = THUMB_DIR / name
+        if not out.exists():
+            info = bambu_ftp.fetch_weights(self.ip, self.code, gf)
+            thumb = (info or {}).get("thumbnail")
+            if not thumb:
+                self._live_job = (gf, None)
+                return None
+            try:
+                THUMB_DIR.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(thumb)
+            except Exception:
+                self._live_job = (gf, None)
+                return None
+            log(f"{self.name}: live preview saved for '{gf}'")
+        self._live_job = (gf, name)
+        return name
 
     def _enrich_weights(self, cap):
         """Pull the sliced 3MF and fill each material's grams from used_g. Try the

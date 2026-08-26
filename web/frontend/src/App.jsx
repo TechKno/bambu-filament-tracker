@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { api } from './api.js'
+import { api, thumbUrl } from './api.js'
 import Login from './components/Login.jsx'
 import Inventory from './pages/Inventory.jsx'
 import Pending from './pages/Pending.jsx'
@@ -136,7 +136,11 @@ function PrinterStatus({ status }) {
         const paused = p.gcode_state === 'PAUSE'
         const dot = paused ? 'var(--yellow)' : p.printing ? 'var(--green)' : 'var(--muted)'
         return (
-          <div key={p.serial} style={{ padding: '2px 0' }}>
+          <div key={p.serial} className="status-block">
+            {p.printing && p.thumbnail && (
+              <img className="thumb thumb-live" src={thumbUrl(p.thumbnail)} alt="" />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div className="status-line">
               <span className="dot" style={{ background: dot }} />
               <b>{p.name}</b>
@@ -151,6 +155,7 @@ function PrinterStatus({ status }) {
                 <div style={{ width: `${Math.min(100, p.percent ?? 0)}%` }} />
               </div>
             )}
+            </div>
           </div>
         )
       })}

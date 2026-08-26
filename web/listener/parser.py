@@ -189,6 +189,7 @@ class PrinterMonitor:
             "gcode_state": st.get("gcode_state"),
             "printing": self.printing,
             "model": (st.get("subtask_name") or self.model) if self.printing else None,
+            "gcode_file": self.gcode_file if self.printing else None,
             "percent": _int(st.get("mc_percent")),
             "remaining_min": _int(st.get("mc_remaining_time")),
             "layer": _int(st.get("layer_num")),
