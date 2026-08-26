@@ -82,6 +82,22 @@ _, caps = run([
 check("external: material flagged external", caps and caps[0]["materials"][0]["external"] is True, caps)
 check("external: slot_key ext", caps and caps[0]["materials"][0]["slot_key"] == "01P00A000000000:ext", caps)
 
+# --- connect mid-pause, resume, then finish --------------------------------- #
+_, caps = run([
+    {"print": {"gcode_state": "PAUSE", "subtask_name": "Paused", "ams": ams("1")}},
+    {"print": {"gcode_state": "RUNNING", "ams": ams("1", {1: 70})}},
+    {"print": {"gcode_state": "FINISH", "ams": ams("1", {1: 66})}},
+])
+check("pause-connect: captured on finish", len(caps) == 1 and caps[0]["status"] == "completed", caps)
+check("pause-connect: tracked the tray", caps and caps[0]["materials"][0]["slot_key"] == "01P00A000000000:0:1", caps)
+
+# --- paused job that ends without resuming ---------------------------------- #
+_, caps = run([
+    {"print": {"gcode_state": "PAUSE", "subtask_name": "PausedEnd", "ams": ams("0")}},
+    {"print": {"gcode_state": "FINISH", "ams": ams("0")}},
+])
+check("pause->finish still captured", len(caps) == 1, caps)
+
 # --- no phantom capture from idle noise ------------------------------------- #
 _, caps = run([
     {"print": {"gcode_state": "IDLE", "ams": ams("255")}},

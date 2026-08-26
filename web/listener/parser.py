@@ -66,7 +66,9 @@ class PrinterMonitor:
     # -- transitions -------------------------------------------------------- #
 
     def _on_transition(self, new: str):
-        if new == "RUNNING":
+        # A paused job is still an active print — latch onto RUNNING or PAUSE so
+        # we track correctly even if we (re)connect mid-pause.
+        if new in ("RUNNING", "PAUSE"):
             if not self.printing:
                 self._begin()
             else:

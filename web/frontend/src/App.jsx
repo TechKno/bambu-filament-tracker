@@ -45,11 +45,20 @@ export default function App() {
   useEffect(() => { checkAuth() }, [checkAuth])
   useEffect(() => { if (auth.authed) { loadInv(); loadPending() } }, [auth.authed, loadInv, loadPending])
 
-  // Poll for new printer captures / live status while signed in.
+  // Live-refresh printer status + pending captures while signed in. Poll every
+  // 5s when the tab is visible, and refetch immediately on focus/visibility —
+  // browsers throttle timers in background tabs, so focus is the reliable path.
   useEffect(() => {
     if (!auth.authed) return
-    const t = setInterval(loadPending, 15000)
-    return () => clearInterval(t)
+    const refresh = () => { if (document.visibilityState === 'visible') loadPending() }
+    const t = setInterval(refresh, 5000)
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
   }, [auth.authed, loadPending])
 
   if (auth.loading) return <div className="app"><p className="muted" style={{ marginTop: 40 }}>Loading…</p></div>
@@ -114,15 +123,28 @@ function PrinterStatus({ status }) {
   if (!printers.length) return null
   return (
     <div className="banner" style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}>
-      {printers.map((p) => (
-        <div className="status-line" key={p.serial}>
-          <span className="dot" style={{ background: p.printing ? 'var(--green)' : 'var(--muted)' }} />
-          <b>{p.name}</b>
-          {p.printing
-            ? <span className="muted">printing {p.model || ''} — {p.percent ?? 0}%{p.remaining_min != null ? ` · ${p.remaining_min} min left` : ''}{p.layer != null && p.total_layers != null ? ` · layer ${p.layer}/${p.total_layers}` : ''}</span>
-            : <span className="muted">idle{p.gcode_state ? ` (${p.gcode_state.toLowerCase()})` : ''}</span>}
-        </div>
-      ))}
+      {printers.map((p) => {
+        const paused = p.gcode_state === 'PAUSE'
+        const dot = paused ? 'var(--yellow)' : p.printing ? 'var(--green)' : 'var(--muted)'
+        return (
+          <div key={p.serial} style={{ padding: '2px 0' }}>
+            <div className="status-line">
+              <span className="dot" style={{ background: dot }} />
+              <b>{p.name}</b>
+              {p.printing
+                ? <span className="muted">{paused ? 'paused' : 'printing'} {p.model || ''} — {p.percent ?? 0}%{p.remaining_min ? ` · ${p.remaining_min} min left` : ''}{p.layer != null && p.total_layers ? ` · layer ${p.layer}/${p.total_layers}` : ''}</span>
+                : <span className="muted">idle{p.gcode_state ? ` (${p.gcode_state.toLowerCase()})` : ''}</span>}
+              <span className="spacer" />
+              <span className="muted" style={{ fontSize: 12 }}>updated {p.updated_at?.slice(11)}</span>
+            </div>
+            {p.printing && (
+              <div className={`bar${paused ? ' mid' : ''}`} style={{ maxWidth: 'none', marginTop: 6 }}>
+                <div style={{ width: `${Math.min(100, p.percent ?? 0)}%` }} />
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
