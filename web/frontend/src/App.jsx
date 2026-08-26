@@ -17,6 +17,14 @@ const PRIMARY = [['dashboard', 'Dashboard'], ['pending', 'Pending'], ['inventory
 const SECONDARY = [['history', 'History'], ['stats', 'Stats'], ['log', 'Log print']]
 const TERTIARY = [['reorder', 'Reorder'], ['printers', 'Printers'], ['settings', 'Settings']]
 const TITLES = Object.fromEntries([...PRIMARY, ...SECONDARY, ...TERTIARY])
+const VIEWS = Object.keys(TITLES)
+
+// Views live in the URL hash, so screens are linkable and the browser's back
+// button works. Anything unrecognised falls back to the dashboard.
+const viewFromHash = () => {
+  const v = decodeURIComponent((window.location.hash || '').replace(/^#\/?/, ''))
+  return VIEWS.includes(v) ? v : 'dashboard'
+}
 
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -31,7 +39,7 @@ function useTheme() {
 
 export default function App() {
   const [auth, setAuth] = useState({ loading: true, enabled: false, authed: false })
-  const [view, setView] = useState('dashboard')
+  const [view, setViewState] = useState(viewFromHash)
   const [inv, setInv] = useState(null)
   const [pend, setPend] = useState({ pending: [], status: {} })
   const [dash, setDash] = useState(null)
@@ -56,6 +64,17 @@ export default function App() {
     try { setDash(await api.dashboard(month)) }
     catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
   }, [month])
+
+  // Keep state and hash in step, in both directions.
+  const setView = useCallback((v) => {
+    setViewState(v)
+    if (viewFromHash() !== v) window.location.hash = v
+  }, [])
+  useEffect(() => {
+    const onHash = () => setViewState(viewFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const checkAuth = useCallback(async () => {
     const s = await api.authStatus()

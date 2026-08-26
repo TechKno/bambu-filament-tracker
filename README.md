@@ -12,6 +12,19 @@ LAN MQTT and FTPS (X1/X1C, P1P/P1S, A1/A1 mini) — see [Printer support](#print
 > Single-user, self-hosted, LAN-only by design. No accounts, no telemetry, nothing
 > leaves your network.
 
+![Dashboard](docs/screenshots/dashboard.png)
+
+<p align="center">
+  <img src="docs/screenshots/pending.png" alt="Confirming a finished print" width="49%">
+  <img src="docs/screenshots/inventory.png" alt="Inventory" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/history.png" alt="Print history" width="49%">
+  <img src="docs/screenshots/mobile.png" alt="Mobile dashboard" width="22%">
+</p>
+
+<sub>Screenshots use demo data — names, filaments and model previews are fabricated.</sub>
+
 ---
 
 ## Why

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, grams as fmtGrams, thumbUrl } from '../api.js'
+import { api, grams as fmtGrams, thumbUrl, shortDate } from '../api.js'
 import { rankSpools, bestGuess } from '../colors.js'
 
 // Bambu reports tray colour as RRGGBBAA hex; show the first 6 as a swatch.
@@ -73,7 +73,7 @@ function LoadCard({ load, spools, reload }) {
       <div className="row" style={{ marginBottom: 8 }}>
         {bambuSwatch(load.color)}
         <b>{load.external ? 'External spool' : `AMS ${(load.ams ?? 0) + 1} · slot ${(load.tray ?? 0) + 1}`}</b>
-        <span className="muted">{load.type} loaded · {load.ts}</span>
+        <span className="muted">{load.type} loaded · {shortDate(load.ts)}</span>
       </div>
       <div className="row">
         <div style={{ flex: 1, minWidth: 200 }}>
@@ -137,7 +137,7 @@ function PendingCard({ cap, spools, reload }) {
       <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
         {cap.printer_name}
         {cap.weight_g != null ? ` · ${cap.weight_g} g sliced` : ''}
-        {cap.duration_min != null ? ` · ${cap.duration_min} min` : ''} · {cap.captured_at}
+        {cap.duration_min != null ? ` · ${cap.duration_min} min` : ""} · {shortDate(cap.captured_at)}
         {status === 'failed' && failedPct != null && ` · failed ~${failedPct}% in — grams estimated`}
       </div>
 

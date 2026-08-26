@@ -15,7 +15,7 @@ const fmtEta = (min) => {
 const finishTime = (min) => {
   if (min == null) return null
   const end = new Date(Date.now() + min * 60000)
-  const hhmm = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const hhmm = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   // Day delta from copies — never mutate the Date the display string came from.
   const midnight = (d) => new Date(d).setHours(0, 0, 0, 0)
   const days = Math.round((midnight(end) - midnight(new Date())) / 86400000)
