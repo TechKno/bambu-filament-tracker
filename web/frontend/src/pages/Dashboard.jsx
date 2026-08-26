@@ -11,7 +11,18 @@ const fmtEta = (min) => {
   return h ? `${h}h ${m}m` : `${m}m`
 }
 
-export default function Dashboard({ data, go }) {
+// Clock time the print should finish, from the minutes the printer reports.
+const finishTime = (min) => {
+  if (!min) return null
+  const end = new Date(Date.now() + min * 60000)
+  const hhmm = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const days = Math.round((end.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
+  if (days === 0) return hhmm
+  if (days === 1) return `${hhmm} tomorrow`
+  return `${hhmm} in ${days} days`
+}
+
+export default function Dashboard({ data, go, month, setMonth }) {
   if (!data) return <p className="muted">Loading…</p>
 
   const printing = (data.printers || []).filter((p) => p.printing)
@@ -71,14 +82,12 @@ export default function Dashboard({ data, go }) {
 
       <div className="panel">
         <h2>At a glance</h2>
-        <div className="stat-grid">
-          <Tile big={data.totals.spools} lbl="spools in stock" onClick={() => go('inventory')} />
-          <Tile big={money(data.totals.inventory_value)} lbl="filament value" onClick={() => go('inventory')} />
-          <Tile big={`${grams(data.totals.month_grams)} g`} lbl={`used in ${data.totals.month_label}`} onClick={() => go('stats')} />
-          <Tile big={data.totals.prints} lbl="prints logged" onClick={() => go('history')} />
-          <Tile big={data.totals.success_rate == null ? '—' : `${data.totals.success_rate}%`} lbl="success rate" onClick={() => go('stats')} />
-          <Tile big={money(data.totals.cost_total)} lbl="spent on prints" onClick={() => go('stats')} />
+        <div className="stat-grid" style={{ marginBottom: 16 }}>
+          <Tile big={data.now.spools} lbl="spools in stock" onClick={() => go('inventory')} />
+          <Tile big={money(data.now.inventory_value)} lbl="filament value" onClick={() => go('inventory')} />
+          <Tile big={data.now.prints_all_time} lbl="prints all time" onClick={() => go('history')} />
         </div>
+        <Periods periods={data.periods} month={month} setMonth={setMonth} />
       </div>
 
       {data.forecast?.length > 0 && (
@@ -143,13 +152,18 @@ function ActivePrint({ p }) {
           <div className="dash-active-name">{p.model || 'Print'}</div>
           <div className="muted" style={{ fontSize: 13 }}>
             {p.layer != null && p.total_layers ? `Layer ${p.layer} of ${p.total_layers}` : ''}
-            {p.weight_g ? ` · ${grams(p.weight_g)} g planned` : ''}
-            {p.remaining_min ? ` · ${fmtEta(p.remaining_min)} left` : ''}
+            {p.weight_g ? ` · ${grams(p.weight_g)} g` : ''}
+            {p.cost != null && ` · ${money(p.cost)}${p.cost_status === 'partial' ? '+' : ''}`}
           </div>
           <div className={`bar${paused ? ' mid' : ''}`} style={{ maxWidth: 'none', marginTop: 8 }}>
             <div style={{ width: `${pct}%` }} />
           </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{pct}% complete</div>
+          <div className="dash-eta">
+            <span>{pct}% complete</span>
+            {!paused && p.remaining_min ? (
+              <span><b>Finishes ~{finishTime(p.remaining_min)}</b> · {fmtEta(p.remaining_min)} left</span>
+            ) : paused ? <span className="muted">paused</span> : null}
+          </div>
         </div>
       </div>
 
@@ -175,6 +189,51 @@ function ActivePrint({ p }) {
               </div>}
         </div>
       )}
+    </div>
+  )
+}
+
+// Month vs year side by side, with arrows to page back through months that
+// have prints (the current month is always offered, even if empty).
+function Periods({ periods, month, setMonth }) {
+  const list = periods.available
+  const i = list.indexOf(periods.selected)
+  const older = i >= 0 && i < list.length - 1 ? list[i + 1] : null
+  const newer = i > 0 ? list[i - 1] : null
+  const m = periods.month_stats, y = periods.year_stats
+
+  const rows = [
+    ['Filament used', `${grams(m.grams)} g`, `${grams(y.grams)} g`],
+    ['Cost', money(m.cost), money(y.cost)],
+    ['Prints', m.prints, y.prints],
+    ['Success rate', m.success_rate == null ? '—' : `${m.success_rate}%`,
+      y.success_rate == null ? '—' : `${y.success_rate}%`],
+    ['Lost to failures', m.failed ? `${grams(m.wasted_g)} g · ${money(m.wasted_cost)}` : '—',
+      y.failed ? `${grams(y.wasted_g)} g · ${money(y.wasted_cost)}` : '—'],
+    ['Average per print', m.avg_g == null ? '—' : `${grams(m.avg_g)} g`,
+      y.avg_g == null ? '—' : `${grams(y.avg_g)} g`],
+  ]
+
+  return (
+    <div>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <button className="btn ghost small" disabled={!older} onClick={() => setMonth(older)}>‹</button>
+        <b style={{ minWidth: 130, textAlign: 'center' }}>{periods.selected_label}</b>
+        <button className="btn ghost small" disabled={!newer} onClick={() => setMonth(newer)}>›</button>
+        {!periods.is_current_month && (
+          <button className="linklike" onClick={() => setMonth(null)}>back to this month</button>
+        )}
+      </div>
+      <table className="period-table">
+        <thead>
+          <tr><th></th><th className="num">{periods.selected_label}</th><th className="num">{periods.year}</th></tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, mv, yv]) => (
+            <tr key={label}><td>{label}</td><td className="num">{mv}</td><td className="num">{yv}</td></tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

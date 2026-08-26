@@ -389,11 +389,14 @@ def _live_projection(store, st, slot_map):
             "spool_id": spool.id,
             "label": spool.label,
             "color": spool.color,
+            "planned_g": round(planned, 2),
             "needed_g": round(need, 2),
             "remaining_g": round(spool.remaining_g, 2),
             "estimated": spool.estimated,
             "enough": spool.remaining_g >= need,
             "short_by": round(max(0.0, need - spool.remaining_g), 2),
+            # What this print costs in this filament (None if the spool has no price).
+            "cost": round(planned * spool.cost_per_g, 2) if spool.has_price else None,
         })
     return out
 
@@ -407,7 +410,13 @@ def dashboard():
 
     printers = []
     for serial, st in status.items():
-        printers.append({**st, "projection": _live_projection(store, st, slot_map)})
+        proj = _live_projection(store, st, slot_map)
+        priced = [p["cost"] for p in proj if p["cost"] is not None]
+        printers.append({**st, "projection": proj,
+                         # Cost of the whole job; "partial" if some spools lack a price.
+                         "cost": round(sum(priced), 2) if priced else None,
+                         "cost_status": ("full" if proj and len(priced) == len(proj)
+                                         else "partial" if priced else "none")})
     printers.sort(key=lambda p: (not p.get("printing"), p.get("name") or ""))
 
     loads = pending.list_loads(DATA_DIR)
@@ -417,9 +426,7 @@ def dashboard():
     reorder = core.reorder_overview(store)
     stats = core.stats_view(store)
     history = core.history_view(store)
-
-    month = datetime.now().strftime("%Y-%m")
-    month_g = next((m["grams"] for m in stats["by_month"] if m["month"] == month), 0.0)
+    periods = core.periods_view(store, request.args.get("month"))
 
     return jsonify(
         printers=printers,
@@ -429,14 +436,12 @@ def dashboard():
         in_progress=core.in_progress(store),
         recent=history[:5],
         forecast=stats["forecast"]["ready"][:3],
-        totals={
+        periods=periods,
+        # Point-in-time figures (not period-based).
+        now={
             "spools": len([s for s in store.spools if not s.is_empty]),
             "inventory_value": stats["inventory_value"],
-            "month_grams": month_g,
-            "month_label": month,
-            "prints": stats["total_prints"],
-            "success_rate": stats["success_rate"],
-            "cost_total": stats["cost_total"],
+            "prints_all_time": stats["total_prints"],
         },
     )
 

@@ -30,6 +30,7 @@ export default function App() {
   const [inv, setInv] = useState(null)
   const [pend, setPend] = useState({ pending: [], status: {} })
   const [dash, setDash] = useState(null)
+  const [month, setMonth] = useState(null)   // null = current month
   const [resolveTarget, setResolveTarget] = useState(null)
 
   const loadInv = useCallback(async () => {
@@ -39,10 +40,10 @@ export default function App() {
 
   const loadPending = useCallback(async () => {
     try {
-      const [p, d] = await Promise.all([api.pending(), api.dashboard()])
+      const [p, d] = await Promise.all([api.pending(), api.dashboard(month)])
       setPend(p); setDash(d)
     } catch (err) { if (err.auth) setAuth((a) => ({ ...a, authed: false })) }
-  }, [])
+  }, [month])
 
   const checkAuth = useCallback(async () => {
     const s = await api.authStatus()
@@ -115,7 +116,7 @@ export default function App() {
       )}
       {view !== 'dashboard' && inv && <Alerts inv={inv} onResolve={setResolveTarget} onGoReorder={() => setView('reorder')} />}
 
-      {view === 'dashboard' && <Dashboard data={dash} go={setView} />}
+      {view === 'dashboard' && <Dashboard data={dash} go={setView} month={month} setMonth={setMonth} />}
       {view === 'inventory' && <Inventory inv={inv} reload={loadInv} />}
       {view === 'pending' && <Pending pending={pend.pending} loads={pend.loads} spools={spools} reload={reloadAll} />}
       {view === 'log' && <LogPrint spools={spools} reload={loadInv} onDone={() => setView('inventory')} />}

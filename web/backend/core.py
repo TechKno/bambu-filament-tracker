@@ -621,6 +621,64 @@ def stats_view(store: Store) -> dict:
     }
 
 
+def _print_rows(store: Store) -> list:
+    """Flatten resolved prints to {day, grams, cost, failed} for period maths."""
+    rows = []
+    for p in store.prints:
+        if p.status not in ("completed", "failed"):
+            continue
+        d = _print_day(p)
+        if not d:
+            continue
+        cost, _ = print_cost(store, p)
+        rows.append({"day": d, "grams": sum(u.grams for u in p.usage),
+                     "cost": cost, "failed": p.status == "failed"})
+    return rows
+
+
+def _aggregate(rows: list) -> dict:
+    done = [r for r in rows if not r["failed"]]
+    fails = [r for r in rows if r["failed"]]
+    return {
+        "prints": len(rows),
+        "completed": len(done),
+        "failed": len(fails),
+        "grams": round(sum(r["grams"] for r in rows), 2),
+        "cost": round(sum(r["cost"] for r in rows), 2),
+        "success_rate": round(len(done) / len(rows) * 100) if rows else None,
+        "wasted_g": round(sum(r["grams"] for r in fails), 2),
+        "wasted_cost": round(sum(r["cost"] for r in fails), 2),
+        "avg_g": round(sum(r["grams"] for r in rows) / len(rows), 2) if rows else None,
+    }
+
+
+def month_label(ym: str) -> str:
+    try:
+        return datetime.strptime(ym, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        return ym
+
+
+def periods_view(store: Store, month: Optional[str] = None) -> dict:
+    """Stats for one month and its year, plus the months that have data so the
+    dashboard can page back through history."""
+    rows = _print_rows(store)
+    now = datetime.now()
+    current = now.strftime("%Y-%m")
+    available = sorted({r["day"].strftime("%Y-%m") for r in rows} | {current}, reverse=True)
+    sel = month if month in available else current
+    year = sel[:4]
+    return {
+        "selected": sel,
+        "selected_label": month_label(sel),
+        "is_current_month": sel == current,
+        "year": year,
+        "available": available,
+        "month_stats": _aggregate([r for r in rows if r["day"].strftime("%Y-%m") == sel]),
+        "year_stats": _aggregate([r for r in rows if r["day"].strftime("%Y") == year]),
+    }
+
+
 def forecast_view(store: Store, today: Optional[date] = None) -> dict:
     if today is None:
         today = datetime.now().date()

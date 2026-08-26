@@ -87,14 +87,27 @@ def set_status(**kw):
         "updated_at": "2026-08-26 19:00", **kw}}))
 
 d = c.get("/api/dashboard").get_json()
-ck("dashboard has totals+recent", "totals" in d and "recent" in d and "forecast" in d, list(d))
+ck("dashboard shape", all(k in d for k in ("now", "periods", "recent", "forecast")), list(d))
+ck("friendly month label", " " in d["periods"]["selected_label"]
+   and d["periods"]["selected_label"].split()[0].isalpha(), d["periods"]["selected_label"])
+ck("month and year stats present",
+   {"grams", "cost", "prints", "success_rate", "wasted_g"} <= set(d["periods"]["month_stats"]),
+   d["periods"]["month_stats"])
+ck("this month counts the logged print", d["periods"]["month_stats"]["prints"] >= 1, d["periods"]["month_stats"])
+ck("year >= month", d["periods"]["year_stats"]["grams"] >= d["periods"]["month_stats"]["grams"])
+# paging back to an empty month gives zeros, not an error
+old = c.get("/api/dashboard?month=2020-01").get_json()["periods"]
+ck("unknown month falls back to current", old["is_current_month"] is True, old["selected"])
 
 # projection: 100g job, 50% done -> needs 50g. Spool (900g left) is fine.
 set_status(weight_g=100, active_slots=[f"{SER}:ext"], filaments=[{"type": "PLA", "used_g": 100}])
 pending.set_slot(TMP, f"{SER}:ext", sp["id"])
-pr = c.get("/api/dashboard").get_json()["printers"][0]["projection"]
+p0 = c.get("/api/dashboard").get_json()["printers"][0]
+pr = p0["projection"]
 ck("projection computed for active slot", len(pr) == 1 and pr[0]["needed_g"] == 50.0, pr)
 ck("projection says enough (900g left)", pr[0]["enough"] is True and pr[0]["short_by"] == 0, pr)
+# spool is £20/1000g -> a 100g job costs £2.00
+ck("current print cost", p0["cost"] == 2.0 and p0["cost_status"] == "full", (p0["cost"], p0["cost_status"]))
 
 # same job but the spool is nearly empty -> shortfall flagged
 c.patch(f"/api/spools/{sp['id']}", json={"action": "set_remaining", "remaining_g": 20, "measured": True})

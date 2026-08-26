@@ -55,7 +55,7 @@ export const api = {
   dismissPending: (id) => req('POST', `/pending/${id}/dismiss`),
   assignLoad: (id, d) => req('POST', `/loads/${id}/assign`, d),
   dismissLoad: (id) => req('POST', `/loads/${id}/dismiss`),
-  dashboard: () => req('GET', '/dashboard'),
+  dashboard: (month) => req('GET', `/dashboard${month ? `?month=${encodeURIComponent(month)}` : ''}`),
   printers: () => req('GET', '/printers'),
   savePrinters: (d) => req('PUT', '/printers', d),
 }
