@@ -5,6 +5,9 @@ services:
     container_name: filament-tracker
     ports:
       - "8087:8000"        # browse to http://localhost:8087
+    environment:
+      # Local time for all displayed/stored timestamps (handles GMT/BST itself).
+      - TZ=Europe/London
     volumes:
       - ./data:/data       # filament_data.json, settings.json, backups/, pending/ live here
       - ./secrets:/secrets # printer access codes (writable so the Printers panel can save them)
@@ -18,6 +21,7 @@ services:
       - filament-tracker
     environment:
       - FILAMENT_DATA_DIR=/data
+      - TZ=Europe/London        # keep capture timestamps in local time
       - MQTT_RECORD_SECONDS=20  # snapshot full report state every 20s + on state change (0 = off)
     volumes:
       - ./data:/data           # shares pending/, status, recordings/ with the app
