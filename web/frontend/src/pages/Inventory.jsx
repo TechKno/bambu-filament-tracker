@@ -36,7 +36,6 @@ export default function Inventory({ inv, reload }) {
   return (
     <div>
       <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Inventory</h2>
         {totalValue > 0 && <span className="muted">· {money(totalValue)} on hand</span>}
         <span className="spacer" />
         <button className="btn" onClick={() => setFormSpool(null)}>+ Add spool</button>

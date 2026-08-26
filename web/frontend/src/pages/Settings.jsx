@@ -29,7 +29,6 @@ export default function Settings({ auth, refreshAuth }) {
 
   return (
     <div className="panel" style={{ maxWidth: 520 }}>
-      <h2>Settings</h2>
       <form onSubmit={save}>
         <label className="checkbox" style={{ marginBottom: 14 }}>
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
@@ -50,7 +49,7 @@ export default function Settings({ auth, refreshAuth }) {
         <button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button>
       </form>
 
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />
+      <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '20px 0' }} />
       <p className="muted" style={{ fontSize: 13 }}>
         Login is currently <b>{auth.enabled ? 'on' : 'off'}</b>. When off, anyone who can reach this
         page on your network can use it — keep it on your trusted LAN and don’t forward the port to

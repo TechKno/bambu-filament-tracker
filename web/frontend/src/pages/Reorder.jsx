@@ -25,7 +25,6 @@ export default function Reorder({ reload }) {
 
   return (
     <div className="panel">
-      <h2>Reorder / low stock</h2>
       {err && <div className="error">{err}</div>}
       {actionable.length === 0 && <p className="muted">Everything is above the 10% threshold. Nothing to reorder.</p>}
 

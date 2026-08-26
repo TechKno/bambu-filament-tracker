@@ -59,7 +59,6 @@ export default function LogPrint({ spools, reload, onDone }) {
 
   return (
     <div className="panel">
-      <h2>Log a print</h2>
       <form onSubmit={submit}>
         <label className="field"><span>Print name</span>
           <input value={name} autoFocus onChange={(e) => setName(e.target.value)} placeholder="e.g. Benchy" /></label>

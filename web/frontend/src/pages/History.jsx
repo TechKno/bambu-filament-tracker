@@ -28,7 +28,6 @@ export default function History({ reload }) {
 
   return (
     <div className="panel">
-      <h2>Print history</h2>
       {err && <div className="error">{err}</div>}
       {prints.length === 0 && <p className="muted">No prints logged yet.</p>}
       {prints.length > 0 && (

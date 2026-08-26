@@ -4,7 +4,7 @@ import { rankSpools, bestGuess } from '../colors.js'
 
 // Bambu reports tray colour as RRGGBBAA hex; show the first 6 as a swatch.
 function bambuSwatch(hex) {
-  const c = typeof hex === 'string' && /^[0-9a-fA-F]{6,8}$/.test(hex) ? `#${hex.slice(0, 6)}` : 'var(--panel-2)'
+  const c = typeof hex === 'string' && /^[0-9a-fA-F]{6,8}$/.test(hex) ? `#${hex.slice(0, 6)}` : 'var(--s2)'
   return <span className="bambu-swatch" style={{ background: c }} title={hex || 'unknown'} />
 }
 
@@ -36,7 +36,7 @@ export default function Pending({ pending, loads, spools, reload }) {
       {hasLoads && (
         <div style={{ marginBottom: 18 }}>
           <div className="row" style={{ marginBottom: 8 }}>
-            <h2 style={{ margin: 0 }}>Filament loaded</h2>
+            <h2 className="sec-head" style={{ margin: 0 }}>Filament loaded</h2>
             <span className="muted">confirm what's in each slot so prints pre-fill automatically</span>
           </div>
           {loads.map((l) => <LoadCard key={l.id} load={l} spools={spools} reload={reload} />)}
@@ -44,7 +44,7 @@ export default function Pending({ pending, loads, spools, reload }) {
       )}
 
       <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Pending prints</h2>
+        <h2 className="sec-head" style={{ margin: 0 }}>Pending prints</h2>
         <span className="muted">from the printer, awaiting confirmation</span>
       </div>
       {pending.length === 0 && (

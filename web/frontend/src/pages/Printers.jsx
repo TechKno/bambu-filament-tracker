@@ -35,7 +35,6 @@ export default function Printers() {
   return (
     <div className="panel">
       <div className="row" style={{ marginBottom: 6 }}>
-        <h2 style={{ margin: 0 }}>Printers</h2>
         <span className="muted">monitored over local MQTT</span>
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => setRows([...rows, { ...blank }])}>+ Add printer</button>
@@ -50,7 +49,7 @@ export default function Printers() {
       {rows.map((r, i) => (
         <div key={i} className="printer-row">
           <div className="row" style={{ marginBottom: 8 }}>
-            <span className="dot" style={{ background: r.connected ? 'var(--green)' : 'var(--muted)' }} />
+            <span className="dot" style={{ background: r.connected ? 'var(--ok)' : 'var(--mu)' }} />
             <b>{r.name || 'New printer'}</b>
             <span className="muted" style={{ fontSize: 13 }}>
               {r.connected ? `connected · ${(r.gcode_state || '').toLowerCase()}` : 'not connected'}

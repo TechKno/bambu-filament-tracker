@@ -1,0 +1,166 @@
+/* ==========================================================================
+   Screens not yet rebuilt against the new design system.
+
+   These classes are still used by Inventory, Pending, History, Stats, Log
+   print, Reorder, Printers, Settings and the modals. They are re-expressed
+   here in the new tokens so those pages look consistent with the redesign,
+   and each block can be deleted as its screen is converted.
+   ========================================================================== */
+
+/* legacy page container (Login) */
+.app { max-width: 1000px; margin: 0 auto; padding: 0 16px 64px; }
+
+/* .panel was the old card */
+.panel {
+  background: var(--s1); border: 1px solid var(--line); border-radius: 16px;
+  padding: 16px; margin-bottom: 14px;
+}
+.panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+.panel h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* banners */
+.banner { border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; }
+.banner b { display: block; margin-bottom: 4px; }
+.banner .line { display: flex; gap: 10px; align-items: center; padding: 3px 0; flex-wrap: wrap; }
+.banner.red {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+  color: var(--bad);
+}
+.banner.yellow {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  color: var(--warn);
+}
+.banner .muted { color: var(--mu); }
+
+/* stat tiles (old names) */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
+.stat { background: var(--s2); border-radius: 12px; padding: 13px 12px; border: 1px solid transparent; }
+.stat .big {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  font-size: 19px; font-weight: 600;
+}
+.stat .lbl { font-size: 11.5px; color: var(--mu); margin-top: 2px; }
+
+/* status tags -> pill styling */
+.tag {
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .03em;
+  padding: 3px 8px; border-radius: 20px; white-space: nowrap; display: inline-block;
+}
+.tag.ok     { color: var(--ok);   background: color-mix(in srgb, var(--ok) 12%, transparent);   border: 1px solid color-mix(in srgb, var(--ok) 33%, transparent); }
+.tag.failed { color: var(--bad);  background: color-mix(in srgb, var(--bad) 12%, transparent);  border: 1px solid color-mix(in srgb, var(--bad) 33%, transparent); }
+.tag.wip    { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 33%, transparent); }
+
+/* extra pill variants used by inventory / reorder */
+.pill.low, .pill.out {
+  color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 33%, transparent);
+}
+.pill.switch, .pill.est-warn {
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 33%, transparent);
+}
+.pill.ordered {
+  color: var(--acc); background: color-mix(in srgb, var(--acc) 12%, transparent);
+  border-color: color-mix(in srgb, var(--acc) 33%, transparent);
+}
+.pill.ignored, .pill.est { /* muted default already applied by .pill */ }
+
+/* fill-bar variants used by inventory (barClass returns low / mid) */
+.bar.low > div { background: var(--bad); }
+.bar.mid > div { background: var(--warn); }
+
+/* inventory rows */
+.inv-item {
+  background: var(--s1); border: 1px solid var(--line); border-radius: 14px;
+  margin-bottom: 10px; overflow: hidden;
+}
+.inv-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.inv-head:hover { background: var(--s2); }
+.inv-title { font-weight: 600; font-size: 14.5px; }
+.inv-sub { color: var(--mu); font-size: 12.5px; margin-top: 2px; }
+.inv-rolls { padding: 8px 14px 12px; border-top: 1px solid var(--line); background: var(--s2); }
+.weight {
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  font-weight: 600; min-width: 90px; text-align: right;
+}
+.roll {
+  display: flex; gap: 10px; align-items: center; padding: 10px 0;
+  border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
+.roll:last-child { border-bottom: none; }
+
+/* spool icon is a span now; keep it from being squashed in flex rows */
+.spool-icon { flex: 0 0 auto; }
+
+/* printer-reported colour chip (Pending) */
+.bambu-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--line); flex: 0 0 auto; display: inline-block;
+}
+
+/* thumbnails */
+.thumb {
+  width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
+  background: var(--s2); border: 1px solid var(--line); flex: 0 0 auto;
+}
+.thumb-empty {
+  background: var(--s2);
+  background-image: repeating-linear-gradient(45deg, var(--stripe) 0 6px, transparent 6px 12px);
+}
+.thumb-lg { width: 60px; height: 60px; }
+.hist-name { display: flex; gap: 10px; align-items: center; }
+
+/* pending cards */
+.pending-mat {
+  display: grid; grid-template-columns: minmax(150px, 1fr) minmax(150px, 1.3fr) 120px;
+  gap: 8px; align-items: center; margin: 10px 0;
+  background: var(--s2); border-radius: 12px; padding: 10px;
+}
+.pending-mat-info { display: flex; align-items: center; gap: 8px; font-size: 13.5px; min-width: 0; flex-wrap: wrap; }
+.pending-name { flex: 1; min-width: 150px; font-weight: 600; font-size: 15px; }
+@media (max-width: 700px) { .pending-mat { grid-template-columns: 1fr; } }
+
+/* printers panel */
+.printer-row {
+  background: var(--s1); border: 1px solid var(--line); border-radius: 14px;
+  padding: 13px; margin-bottom: 10px;
+}
+.printer-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.printer-fields .field { margin-bottom: 0; }
+
+/* forms */
+.inline-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .inline-fields { grid-template-columns: 1fr; } }
+.mat-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: end; margin-bottom: 8px; }
+@media (max-width: 620px) { .mat-row { grid-template-columns: 1fr; } }
+
+/* modals */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .55); z-index: 60;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow: auto;
+}
+.modal {
+  background: var(--s1); border: 1px solid var(--line); border-radius: 16px;
+  width: 100%; max-width: 520px; padding: 20px; animation: ft-rise .24s ease;
+}
+.modal h3 { margin: 0 0 14px; font-size: 16px; }
+
+/* login */
+.login-wrap { max-width: 360px; margin: 80px auto; }
+
+/* live status line (used by legacy printer status block) */
+.status-line { display: flex; align-items: center; gap: 10px; font-size: 13.5px; flex-wrap: wrap; }
+
+/* Tables in not-yet-rebuilt screens (History, Stats) are wider than a phone.
+   Contain the scroll to the table itself so the page never scrolls sideways.
+   These screens become card lists when they are rebuilt. */
+@media (max-width: 780px) {
+  .panel > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .panel > table td, .panel > table th { white-space: nowrap; }
+  .panel > table td .muted { white-space: normal; }
+}
