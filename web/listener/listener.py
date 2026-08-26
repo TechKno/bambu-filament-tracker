@@ -33,6 +33,13 @@ PENDING_DIR = DATA_DIR / "pending"
 STATUS_FILE = DATA_DIR / "printer_status.json"
 RESCAN_SECONDS = 30
 
+# Optional recording of full merged report state, for offline analysis / future
+# tuning. Snapshots the whole `print` object every N seconds and on every state
+# change (0 = off). Rotates at a size cap so it can't fill the disk.
+RECORD_SECONDS = int(os.environ.get("MQTT_RECORD_SECONDS", "0"))
+RECORD_DIR = DATA_DIR / "recordings"
+RECORD_MAX_BYTES = 20 * 1024 * 1024
+
 _status: dict = {}
 
 
@@ -96,6 +103,8 @@ class PrinterClient:
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_disconnect = self._on_disconnect
+        self.last_snap = 0.0
+        self.last_gs_rec = "__start__"
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -122,8 +131,33 @@ class PrinterClient:
             return
         if status:
             write_status(self.serial, status)
+            self._maybe_record(status)
         if capture:
             write_capture(capture)
+
+    def _maybe_record(self, status):
+        if RECORD_SECONDS <= 0:
+            return
+        gs = status.get("gcode_state")
+        now = time.time()
+        transition = gs != self.last_gs_rec
+        if not transition and (now - self.last_snap) < RECORD_SECONDS:
+            return
+        self.last_gs_rec = gs
+        self.last_snap = now
+        try:
+            RECORD_DIR.mkdir(parents=True, exist_ok=True)
+            f = RECORD_DIR / f"{self.serial}.jsonl"
+            if f.exists() and f.stat().st_size > RECORD_MAX_BYTES:
+                f.replace(RECORD_DIR / f"{self.serial}.jsonl.1")   # keep one rotation
+            with open(f, "a") as fh:
+                fh.write(json.dumps({
+                    "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "gcode_state": gs, "transition": transition,
+                    "print": self.monitor.state.get("print", {}),
+                }) + "\n")
+        except Exception:
+            pass
 
     def start(self):
         self.client.connect_async(self.ip, 8883, keepalive=60)

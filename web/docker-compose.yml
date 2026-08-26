@@ -17,7 +17,8 @@ services:
       - filament-tracker
     environment:
       - FILAMENT_DATA_DIR=/data
+      - MQTT_RECORD_SECONDS=20  # snapshot full report state every 20s + on state change (0 = off)
     volumes:
-      - ./data:/data           # shares pending/ and printer_status.json with the app
+      - ./data:/data           # shares pending/, status, recordings/ with the app
       - ./secrets:/secrets:ro  # printer_codes.env (SERIAL=ACCESSCODE per line)
     restart: unless-stopped
